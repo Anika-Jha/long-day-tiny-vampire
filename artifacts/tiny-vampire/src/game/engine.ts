@@ -95,6 +95,7 @@ export class GameEngine {
   };
   // Solstice Memories collected this run, for the ending scrapbook
   collectedMemories: MemoryEntry[] = [];
+  collectedPostcards: MemoryEntry[] = [];
 
   // one-shot narration flags (reset per life / per level)
   criticalFired = false;
@@ -554,6 +555,11 @@ export class GameEngine {
         } else {
           // postcard
           this.globalStats.postcardsFound++;
+          this.collectedPostcards.push({
+            id: c.id,
+            label: c.label || "A Postcard",
+            desc: c.desc || "A postcard from your coffin.",
+          });
           audio.collectSticker();
           this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 14, "#ffd36b");
           this.cb.onDialogue([c.desc || "A postcard from your coffin."], "nox");

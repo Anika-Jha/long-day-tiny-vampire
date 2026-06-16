@@ -150,6 +150,7 @@ export default function Game() {
     if (eng) {
       eng.collected = new Set();
       eng.collectedMemories = [];
+      eng.collectedPostcards = [];
       eng.shields = 0;
       eng.globalStats.memoryFound = 0;
       eng.globalStats.tokensFound = 0;
@@ -225,6 +226,7 @@ export default function Game() {
               <EndingScreen
                 stats={hud.globalStats}
                 memories={engineRef.current?.collectedMemories ?? []}
+                postcards={engineRef.current?.collectedPostcards ?? []}
                 onCredits={() => setScreen("credits")}
               />
             )}
@@ -519,13 +521,100 @@ const SUNSET_BEATS: { who: "sun" | "nox" | "narrator"; text: string }[] = [
   { who: "sun", text: "Goodnight. Rest well — I'll keep tomorrow waiting." },
 ];
 
+/** A drawn little postcard with the coffin's handwritten note. */
+function Postcard({ label, desc, tilt }: { label: string; desc: string; tilt: number }) {
+  const place = label.replace(/^Postcard:\s*/i, "");
+  return (
+    <div
+      className="w-40 shrink-0 rounded-md border border-amber-100/30 bg-gradient-to-br from-amber-50 to-orange-100 p-2 text-left text-[#3a2a1a] shadow-lg"
+      style={{ transform: `rotate(${tilt * 2.5}deg)` }}
+    >
+      <div className="flex gap-1.5">
+        {/* little stamp + scene */}
+        <div className="flex h-12 w-12 shrink-0 items-end justify-center overflow-hidden rounded-sm bg-gradient-to-b from-sky-300 to-amber-200">
+          <span className="mb-0.5 text-[10px]">☼ ☾</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[11px] font-black uppercase tracking-wide text-orange-800">
+            {place}
+          </div>
+          <div className="mt-0.5 flex justify-end">
+            <span className="inline-block rounded-sm border border-rose-300 bg-rose-200 px-1 text-[8px] text-rose-700">
+              ★
+            </span>
+          </div>
+        </div>
+      </div>
+      <p className="mt-1 border-t border-amber-200/60 pt-1 text-[10px] italic leading-snug text-[#5a4030]">
+        {desc}
+      </p>
+    </div>
+  );
+}
+
+/** The tiny vampire, finally asleep in his coffin, with NOX keeping watch. */
+function SleepingCoffin() {
+  return (
+    <svg
+      viewBox="0 0 220 120"
+      className="mx-auto mt-5 h-28 w-auto"
+      role="img"
+      aria-label="The tiny vampire asleep in his coffin"
+    >
+      {/* soft floor glow */}
+      <ellipse cx="110" cy="108" rx="92" ry="10" fill="#2a1f44" opacity="0.6" />
+      {/* coffin body (hexagonal) */}
+      <polygon
+        points="40,52 80,40 140,40 180,52 168,100 52,100"
+        fill="#4a3324"
+        stroke="#caa05a"
+        strokeWidth="2"
+      />
+      {/* inner lining */}
+      <polygon points="56,54 82,46 138,46 164,54 154,94 66,94" fill="#1d1430" />
+      {/* little pillow */}
+      <rect x="64" y="52" width="40" height="16" rx="7" fill="#e7dcff" opacity="0.92" />
+      {/* blanket pulled up */}
+      <path d="M96 70 H156 L150 94 H92 Z" fill="#5a2740" />
+      <path d="M96 70 H156" stroke="#7a3a58" strokeWidth="2" />
+      {/* sleeping vampire head on the pillow */}
+      <circle cx="84" cy="60" r="11" fill="#efe7ff" />
+      {/* closed, content eyes */}
+      <path d="M78 59 q3 3 6 0" stroke="#3a2540" strokeWidth="1.6" fill="none" />
+      <path d="M86 59 q3 3 6 0" stroke="#3a2540" strokeWidth="1.6" fill="none" />
+      {/* little fang smile */}
+      <path d="M81 65 q3 2 6 0" stroke="#7a2030" strokeWidth="1.4" fill="none" />
+      {/* sleepy Zzz */}
+      <text x="104" y="44" fontSize="11" fill="#cbb8ff" fontStyle="italic">
+        z
+      </text>
+      <text x="112" y="36" fontSize="14" fill="#cbb8ff" fontStyle="italic">
+        Z
+      </text>
+      <text x="122" y="26" fontSize="18" fill="#e7dcff" fontStyle="italic">
+        Z
+      </text>
+      {/* NOX the bat, keeping watch on the coffin rim */}
+      <g transform="translate(150 38)">
+        <circle cx="0" cy="0" r="5" fill="#2a1c44" />
+        <path d="M0 0 Q-10 -7 -13 1 Q-6 -1 0 2 Z" fill="#3a2a5a" />
+        <path d="M0 0 Q10 -7 13 1 Q6 -1 0 2 Z" fill="#3a2a5a" />
+        <circle cx="-1.6" cy="-0.5" r="0.9" fill="#ffd36b" />
+        <circle cx="1.6" cy="-0.5" r="0.9" fill="#ffd36b" />
+      </g>
+    </svg>
+  );
+}
+
 function EndingScreen({
   stats,
   memories,
+  postcards,
   onCredits,
 }: {
   stats: Stats;
   memories: MemoryEntry[];
+  postcards: MemoryEntry[];
   onCredits: () => void;
 }) {
   const [beat, setBeat] = useState(0);
@@ -584,6 +673,21 @@ function EndingScreen({
           exhausted and a little sunburnt, and NOX flutters down beside him. The longest day is over.
           "Told you we'd make it," NOX whispers. "Now — about tomorrow…"
         </p>
+
+        <SleepingCoffin />
+
+        {postcards.length > 0 && (
+          <div className="mx-auto mt-5 max-w-md">
+            <div className="mb-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">
+              Postcards from the Coffin · {stats.postcardsFound}/{stats.postcardsTotal}
+            </div>
+            <div className="flex flex-wrap justify-center gap-3">
+              {postcards.map((p, i) => (
+                <Postcard key={p.id} label={p.label} desc={p.desc} tilt={(i % 3) - 1} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mx-auto mt-5 max-w-md rounded-xl border border-amber-200/20 bg-black/30 p-4 text-left">
           <div className="mb-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">
