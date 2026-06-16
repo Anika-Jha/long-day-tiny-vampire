@@ -657,6 +657,12 @@ export class GameEngine {
     // parallax hills
     this.drawHills(ctx, lvl, W, H);
 
+    // distant home (coffin) — the emotional goal, drawn closer each level
+    this.drawDistantHome(ctx, lvl, W, H);
+
+    // level-specific backdrop decoration
+    if (lvl.theme.music === "sushi") this.drawSushiBackdrop(ctx, lvl, W, H);
+
     ctx.translate(-this.camX, -this.camY);
 
     // shade zones (drawn as soft canopies)
@@ -808,6 +814,150 @@ export class GameEngine {
     ctx.restore();
   }
 
+  // The vampire's coffin home, far in the background, getting closer each level.
+  drawDistantHome(ctx: CanvasRenderingContext2D, lvl: Level, W: number, H: number) {
+    const t = (lvl.theme.sunStage - 1) / 5; // 0 (start of day, home far) .. 1 (almost home)
+    const scale = 0.6 + t * 1.15;
+    const hx = W * (0.74 - t * 0.1) - this.camX * 0.05;
+    const horizon = H - 116;
+    const groundY = horizon + 4;
+    ctx.save();
+    ctx.globalAlpha = 0.55 + t * 0.4;
+
+    // soft hill mound the home rests on
+    ctx.fillStyle = this.shade(lvl.theme.skyBottom, 0.88);
+    ctx.beginPath();
+    ctx.ellipse(hx, groundY, 100 * scale, 30 * scale, 0, Math.PI, 0);
+    ctx.fill();
+
+    // coffin silhouette (six-sided), standing upright
+    const cw = 30 * scale;
+    const ch = 54 * scale;
+    const cx = hx;
+    const topY = groundY - ch;
+    const pts: [number, number][] = [
+      [cx - cw * 0.3, topY],
+      [cx + cw * 0.3, topY],
+      [cx + cw * 0.5, topY + ch * 0.24],
+      [cx + cw * 0.34, groundY],
+      [cx - cw * 0.34, groundY],
+      [cx - cw * 0.5, topY + ch * 0.24],
+    ];
+
+    // warm glow halo behind the home (stronger as we near it)
+    ctx.save();
+    ctx.shadowColor = "rgba(255,196,120,0.7)";
+    ctx.shadowBlur = (16 + t * 18) + Math.sin(this.time * 2) * 5;
+    ctx.fillStyle = "#241c3a";
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // coffin body
+    ctx.fillStyle = "#3a2f56";
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // warm window — home's light, gently flickering
+    const wy = topY + ch * 0.44;
+    const flick = 0.72 + Math.sin(this.time * 4 + t) * 0.14;
+    ctx.fillStyle = `rgba(255,205,130,${flick})`;
+    ctx.beginPath();
+    ctx.arc(cx, wy, 5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Sushi-level backdrop: giant koi drifting in the distance (NOX's "giant fish").
+  drawSushiBackdrop(ctx: CanvasRenderingContext2D, _lvl: Level, W: number, H: number) {
+    ctx.save();
+    const off = this.camX * 0.14;
+    const fx = W * 0.52 - off * 0.3;
+    const fy = H * 0.32 + Math.sin(this.time * 0.7) * 10;
+    ctx.globalAlpha = 0.16;
+    this.drawBigFish(ctx, fx, fy, 1.7, "#ff8a5c");
+    ctx.globalAlpha = 0.1;
+    this.drawBigFish(ctx, fx + 280 - off * 0.2, fy + 130 + Math.sin(this.time * 0.55 + 2) * 9, 1.1, "#ff5d7a");
+    ctx.restore();
+  }
+
+  drawBigFish(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, color: string) {
+    ctx.save();
+    ctx.fillStyle = color;
+    // body
+    ctx.beginPath();
+    ctx.ellipse(x, y, 70 * s, 30 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // tail
+    ctx.beginPath();
+    ctx.moveTo(x + 58 * s, y);
+    ctx.lineTo(x + 100 * s, y - 26 * s);
+    ctx.lineTo(x + 100 * s, y + 26 * s);
+    ctx.closePath();
+    ctx.fill();
+    // dorsal fin
+    ctx.beginPath();
+    ctx.moveTo(x - 4 * s, y - 26 * s);
+    ctx.lineTo(x + 20 * s, y - 50 * s);
+    ctx.lineTo(x + 28 * s, y - 24 * s);
+    ctx.closePath();
+    ctx.fill();
+    // eye (faces left)
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath();
+    ctx.arc(x - 44 * s, y - 6 * s, 6 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#222";
+    ctx.beginPath();
+    ctx.arc(x - 45 * s, y - 6 * s, 3 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A single piece of nigiri sushi: rice base + fish slice. type 0 salmon, 1 tuna, 2 tamago.
+  drawNigiri(ctx: CanvasRenderingContext2D, x: number, yBase: number, scale: number, type: number) {
+    const w = 22 * scale;
+    const rh = 9 * scale;
+    ctx.save();
+    // rice
+    ctx.fillStyle = "#fdf6ec";
+    this.roundRect(ctx, x, yBase - rh, w, rh, 4);
+    ctx.fill();
+    // fish slice draped over the rice
+    let fc = "#ff9a6b";
+    if (type === 1) fc = "#e0564f";
+    else if (type === 2) fc = "#f4d35e";
+    ctx.fillStyle = fc;
+    this.roundRect(ctx, x - 1, yBase - rh - 6 * scale, w + 2, 7 * scale, 4);
+    ctx.fill();
+    if (type === 0) {
+      // salmon stripes
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
+      ctx.lineWidth = 1.4;
+      for (let i = 1; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + (w / 4) * i - 4, yBase - rh - 6 * scale + 1);
+        ctx.lineTo(x + (w / 4) * i, yBase - rh - 1);
+        ctx.stroke();
+      }
+    } else if (type === 2) {
+      // nori band around tamago
+      ctx.fillStyle = "#2a2a3a";
+      ctx.fillRect(x + w / 2 - 3 * scale, yBase - rh - 6 * scale, 6 * scale, rh + 6 * scale);
+    }
+    ctx.restore();
+  }
+
   drawShade(ctx: CanvasRenderingContext2D, z: Rect & { style?: string }) {
     ctx.save();
     // soft shadow on ground
@@ -912,6 +1062,15 @@ export class GameEngine {
           ctx.closePath();
           ctx.fill();
         }
+        // sushi plates riding along the belt
+        const spacing = 86;
+        const slide = this.time * Math.abs(p.conveyor) * dir;
+        const phase = ((slide % spacing) + spacing) % spacing;
+        for (let x = r.x + phase - spacing; x < r.x + r.w - 24; x += spacing) {
+          if (x < r.x + 2) continue;
+          const idx = Math.abs(Math.round(x / spacing)) % 3;
+          this.drawNigiri(ctx, x, r.y, 0.85, idx);
+        }
       }
     } else if (p.style === "stone") {
       ctx.fillStyle = "#8d9384";
@@ -940,14 +1099,12 @@ export class GameEngine {
     ctx.fillStyle = "#caa05a";
     this.roundRect(ctx, r.x, r.y, r.w, r.h, 6);
     ctx.fill();
-    ctx.fillStyle = "#ff8aa0";
-    ctx.fillRect(r.x + 12, r.y - 8, 16, 10);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(r.x + 14, r.y - 6, 12, 4);
-    ctx.fillStyle = "#7ec77e";
-    ctx.beginPath();
-    ctx.arc(r.x + r.w - 24, r.y - 2, 7, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = this.shade("#caa05a", 0.82);
+    ctx.fillRect(r.x, r.y + r.h - 4, r.w, 4);
+    // a plate of nigiri served on the tray
+    this.drawNigiri(ctx, r.x + 14, r.y, 0.95, 0);
+    this.drawNigiri(ctx, r.x + 44, r.y, 0.95, 1);
+    this.drawNigiri(ctx, r.x + 74, r.y, 0.95, 2);
   }
 
   drawFlipFlop(ctx: CanvasRenderingContext2D, bp: Rect) {
