@@ -1,45 +1,43 @@
-# [Project name]
+# Long Day, Tiny Vampire
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A wholesome browser game where a tiny vampire races the June Solstice — the longest day of the year — managing sunlight/shade energy across six festival levels with his bat companion NOX.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- The game is a frontend-only React + Vite artifact at `artifacts/tiny-vampire` (slug `tiny-vampire`, served at `/`).
+- Run via the workflow `artifacts/tiny-vampire: web` (do not run `pnpm dev` at the repo root).
+- `pnpm --filter @workspace/tiny-vampire run typecheck` — typecheck the game.
+- The pre-existing `api-server` and `mockup-sandbox` artifacts are scaffold/tooling; the game does not use them (no backend, DB, or API needed).
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- React 18 + Vite + TypeScript, Tailwind v4, path alias `@/` → `src/`.
+- Rendering: a single HTML `<canvas>` driven by a `requestAnimationFrame` game loop.
+- Audio: procedural Web Audio (no audio files) — music and SFX are synthesized.
 
-## Where things live
+## Where things live (game)
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `src/game/types.ts` — shared level/entity types.
+- `src/game/levels.ts` — the 6 level definitions (`LEVELS`) + `SUN_STAGES`. Source of truth for all level geometry, shade, collectibles, and puzzles.
+- `src/game/engine.ts` — `GameEngine` class: physics, shade/energy, puzzles, camera, and all canvas rendering. Exports `VIEW_W` (960) / `VIEW_H` (540).
+- `src/game/audio.ts` — `audio` singleton (procedural music per level + SFX).
+- `src/components/Game.tsx` — React layer: canvas mount, keyboard input, HUD overlay, all screens (title/death/levelComplete/ending/credits/pause).
+- `src/App.tsx` — mounts `<Game />`.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+- One shared platformer engine expresses every level's distinct mechanic via data (conveyor belts, moving shade, bounce pads, sequence pads + rainbow bridge, cipher levers + gate, scarce shade, narrative NPCs) rather than separate engines.
+- Core loop: out of shade drains energy (scaled by `theme.drain`); shade regenerates; bat shields grant ~5s sun immunity. Energy 0 → ash → respawn at last checkpoint.
+- The engine owns mutable game state; React only renders HUD/screens from `onHud` callbacks and forwards input. The engine instance is created once and reused across runs.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- No emojis in source files; the canvas uses text-glyph game art (☾, ★, ←/→) and an SVG bat instead.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Level data objects in `levels.ts` are mutated at runtime (checkpoint `reached`, dialogue `fired`, seq pad `active`, lever `_cool`/`on`, npc `_fired`, gate `open`). `GameEngine.loadLevel()` MUST reset all of these every load, or replays/retries soft-lock (e.g. the Level 3 rainbow bridge cannot rebuild). A fresh run also resets `shields` + collected set in `startGame()`.
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

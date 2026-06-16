@@ -1,0 +1,1 @@
+- [Canvas game level-state reset](canvas-game-level-state-reset.md) — tiny-vampire level data is mutated in place; loadLevel() must reset every flag or replays/retries soft-lock.

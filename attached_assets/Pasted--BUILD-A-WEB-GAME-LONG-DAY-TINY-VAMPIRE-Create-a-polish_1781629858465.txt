@@ -1,0 +1,475 @@
+# BUILD A WEB GAME: LONG DAY, TINY VAMPIRE
+
+Create a polished browser-based game called "Long Day, Tiny Vampire".
+
+The game should run entirely in the browser using modern web technologies.
+
+Recommended Stack:
+
+* React
+* TypeScript
+* Vite
+* Phaser.js or PixiJS
+* TailwindCSS
+* Web Audio API
+
+The final game should be deployable on:
+
+* Vercel
+* Netlify
+* GitHub Pages
+
+The game must work on desktop browsers without requiring downloads.
+
+---
+
+# HIGH CONCEPT
+
+It is the June Solstice.
+
+The longest day of the year.
+
+A tiny vampire wakes up to discover his coffin has accidentally been transported across a country-wide June celebration route.
+
+He must survive the longest day while traveling through multiple June-themed festivals and events before sunset.
+
+His companion is a small bat named NOX who provides hints, comic relief, and occasional protection.
+
+The tone should be:
+
+* Wholesome
+* Funny
+* Charming
+* Emotional
+* Family friendly
+
+The game should be memorable and judge-friendly.
+
+---
+
+# PRIMARY DESIGN GOAL
+
+Every level must feel completely different.
+
+DO NOT create five platforming levels.
+
+Instead create five different puzzle/gameplay experiences connected by a shared sunlight survival mechanic.
+
+The player should constantly feel surprised.
+
+---
+
+# CORE MECHANIC
+
+SUNLIGHT MANAGEMENT
+
+The vampire can safely exist in shade.
+
+Sunlight drains energy.
+
+The player must continuously think about where shade exists.
+
+Shade becomes a strategic resource.
+
+---
+
+# UI
+
+Top Left:
+Moon-shaped Vampiric Energy Meter
+
+Top Right:
+Bat Shield Charges
+
+Top Center:
+SOLSTICE SUN TRACKER
+
+This is one of the most important features.
+
+Display a horizontal timeline showing:
+
+SUNRISE → MORNING → NOON → AFTERNOON → SUNSET
+
+A small animated sun moves along the timeline as the player progresses.
+
+Each completed level advances the sun.
+
+This creates constant visual tension.
+
+The player always sees:
+
+"I am racing against the longest day."
+
+As sunset approaches:
+
+* Colors become warmer
+* Lighting changes
+* Music evolves
+
+---
+
+# COMPANION
+
+NOX THE BAT
+
+Functions:
+
+* Tutorial system
+* Hint system
+* Storytelling
+* Comic relief
+
+Examples:
+
+"Humans really celebrate everything."
+
+"I miss nighttime."
+
+"That giant fish is judging me."
+
+"Have you considered not standing in sunlight?"
+
+---
+
+# HEALTH SYSTEM
+
+VAMPIRIC ENERGY
+
+Standing in sunlight:
+Energy drains.
+
+Standing in shade:
+Energy regenerates.
+
+Checkpoints:
+Restore energy.
+
+If energy reaches zero:
+
+The vampire turns into a pile of ash.
+
+Nox says a random funny line.
+
+Respawn at checkpoint.
+
+---
+
+# SPECIAL ABILITY
+
+BAT SHIELD
+
+Collect Bat Tokens.
+
+A Bat Token grants one shield charge.
+
+Activate to summon a swarm of bats.
+
+Effect:
+
+* Sunlight immunity
+* Lasts 5 seconds
+
+Useful for crossing large exposed areas.
+
+---
+
+# LEVEL STRUCTURE
+
+Every level should use a DIFFERENT TYPE OF GAMEPLAY.
+
+---
+
+LEVEL 1
+
+INTERNATIONAL SUSHI DAY
+
+Genre:
+Moving Platform Puzzle
+
+Theme:
+Massive sushi festival.
+
+Gameplay:
+
+The player rides conveyor belts carrying sushi.
+
+Shade is created by moving serving trays.
+
+The player must time movement using the trays' shadows.
+
+Puzzle Focus:
+Movement timing.
+
+Goal:
+Escape the sushi district.
+
+---
+
+LEVEL 2
+
+NATIONAL FLIP-FLOP DAY
+
+Genre:
+Physics Puzzle
+
+Theme:
+Beach festival.
+
+Gameplay:
+
+Giant flip-flops act as catapults.
+
+The player must manipulate flip-flops to redirect themselves across gaps.
+
+Puzzle Focus:
+Trajectory and physics.
+
+Goal:
+Reach the boardwalk.
+
+---
+
+LEVEL 3
+
+PRIDE PARADE
+
+Genre:
+Music Puzzle
+
+Theme:
+City-wide celebration.
+
+Gameplay:
+
+Music creates rainbow pathways.
+
+Different musical instruments activate different colored bridges.
+
+The player must activate sounds in the correct order.
+
+Puzzle Focus:
+Pattern recognition and rhythm.
+
+This level should feel vibrant and joyful.
+
+Goal:
+Cross the parade route.
+
+---
+
+LEVEL 4
+
+ALAN TURING'S GARDEN
+
+Genre:
+Logic Puzzle
+
+Theme:
+Codebreaking maze.
+
+Gameplay:
+
+The player encounters mechanical cipher machines.
+
+Solve:
+
+* Pattern puzzles
+* Symbol matching
+* Sequence decoding
+* Rotating wheel puzzles
+
+Avoid difficult mathematics.
+
+Focus on intuitive puzzle solving.
+
+Puzzle Focus:
+Logic.
+
+Goal:
+Escape the maze.
+
+---
+
+LEVEL 5
+
+THE LONGEST AFTERNOON
+
+Genre:
+Stealth + Resource Management
+
+Theme:
+The sun is strongest.
+
+Gameplay:
+
+Shadows are tiny.
+
+The player must plan routes between small safe zones.
+
+Limited Bat Shields available.
+
+This is the most difficult section.
+
+Puzzle Focus:
+Resource management.
+
+Goal:
+Survive until evening.
+
+---
+
+FINAL LEVEL
+
+SUNSET
+
+Genre:
+Narrative Walk
+
+Theme:
+Relief.
+
+Gameplay:
+
+No combat.
+
+No difficult puzzles.
+
+The player simply walks home.
+
+Characters from previous levels appear.
+
+The world feels peaceful.
+
+The player sees the coffin in the distance.
+
+Goal:
+Reach home.
+
+---
+
+# SECRET CONTENT
+
+Each level contains:
+
+* Hidden routes
+* Secret bat conversations
+* Alternate solutions
+* Hidden collectibles
+
+At completion:
+
+Display:
+
+PATHS NOT TAKEN
+
+Show:
+
+* Missed secrets
+* Hidden routes
+* Alternate puzzle solutions
+* Unlocked lore
+
+This encourages replayability.
+
+---
+
+# COLLECTIBLES
+
+Moon Fragments
+
+Used for completion percentage.
+
+Bat Tokens
+
+Used for Bat Shields.
+
+Lost Coffin Stickers
+
+Collectible souvenirs showing places the coffin has accidentally visited.
+
+---
+
+# AUDIO DESIGN
+
+The soundtrack changes with the time of day.
+
+Sunrise:
+Soft piano
+
+Sushi Day:
+Playful festival music
+
+Flip-Flop Day:
+Beach instruments
+
+Pride Parade:
+Energetic electronic music
+
+Turing Garden:
+Mechanical and ambient sounds
+
+Longest Afternoon:
+Minimal music
+Heartbeat effects
+
+Sunset:
+Warm orchestral music
+
+Ending:
+Gentle lullaby
+
+---
+
+# VISUAL DESIGN
+
+Cute 2D art style.
+
+Storybook aesthetic.
+
+Dynamic lighting.
+
+Sun position visibly changes throughout the game.
+
+Shadows become shorter as the day progresses.
+
+The player should physically feel the pressure of the longest day.
+
+---
+
+# ENDING
+
+The vampire finally reaches his coffin.
+
+Nox lands beside it.
+
+NOX:
+"You made it."
+
+VAMPIRE:
+"Barely."
+
+The vampire climbs inside.
+
+Nox places a tiny blanket into the coffin.
+
+The lid slowly closes.
+
+Screen fades to black.
+
+Achievement Unlocked:
+
+SURVIVED THE LONGEST DAY
+
+Text appears:
+
+GOODNIGHT.
+
+After a pause:
+
+"The longest day eventually ends."
+
+Roll credits.
+
+The moving sun tracker finally reaches SUNSET and disappears below the horizon.
+
+End.
