@@ -516,7 +516,7 @@ export class GameEngine {
     for (let i = 0; i < count && i < segs; i++) {
       this.bridgeBuilt.push({
         x: startX + i * segW,
-        y: 470,
+        y: 500,
         w: segW + 2,
         h: 18,
       });

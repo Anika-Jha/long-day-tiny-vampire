@@ -175,7 +175,7 @@ const level3: Level = {
     { x: 300, y: 478, w: 60, h: 22, order: 0, color: "#ff5d5d", note: 0 },
     { x: 420, y: 478, w: 60, h: 22, order: 1, color: "#ffb13d", note: 2 },
     { x: 600, y: 478, w: 60, h: 22, order: 2, color: "#ffe14d", note: 4 },
-    { x: 980, y: 388, w: 60, h: 22, order: 3, color: "#54d96a", note: 5 },
+    { x: 980, y: 478, w: 60, h: 22, order: 3, color: "#54d96a", note: 5 },
     { x: 1180, y: 478, w: 60, h: 22, order: 4, color: "#4fa3ff", note: 7 },
     { x: 1360, y: 478, w: 60, h: 22, order: 5, color: "#9b6bff", note: 9 },
   ],
