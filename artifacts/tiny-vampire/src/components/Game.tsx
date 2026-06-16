@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { GameEngine, VIEW_W, VIEW_H, LEVELS } from "@/game/engine";
 import type { HudState } from "@/game/engine";
-import type { Stats } from "@/game/types";
+import type { Stats, Speaker, MemoryEntry } from "@/game/types";
 import { SUN_STAGES } from "@/game/levels";
 import { audio } from "@/game/audio";
+import Cinematic from "./Cinematic";
 
 type Screen =
   | "title"
@@ -12,7 +13,8 @@ type Screen =
   | "death"
   | "levelComplete"
   | "ending"
-  | "credits";
+  | "credits"
+  | "secret";
 
 const MOVE_KEYS = new Set([
   "ArrowLeft",
@@ -49,16 +51,18 @@ function Bat({ size = 18, className = "" }: { size?: number; className?: string 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
-  const [screen, setScreen] = useState<Screen>("title");
+  const [screen, setScreen] = useState<Screen>("intro");
   const [hud, setHud] = useState<HudState | null>(null);
   const [dialogue, setDialogue] = useState<string[]>([]);
+  const [speaker, setSpeaker] = useState<Speaker>("nox");
   const [muted, setMuted] = useState(false);
   const [levelIndex, setLevelIndex] = useState(0);
   const [completedIndex, setCompletedIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const dialogueTimer = useRef<number | null>(null);
 
-  const showDialogue = useCallback((lines: string[]) => {
+  const showDialogue = useCallback((lines: string[], who: Speaker = "nox") => {
+    setSpeaker(who);
     setDialogue(lines);
     if (dialogueTimer.current) window.clearTimeout(dialogueTimer.current);
     dialogueTimer.current = window.setTimeout(
@@ -142,11 +146,12 @@ export default function Game() {
     const eng = engineRef.current;
     if (eng) {
       eng.collected = new Set();
+      eng.collectedMemories = [];
       eng.shields = 0;
-      eng.globalStats.moonFound = 0;
+      eng.globalStats.memoryFound = 0;
       eng.globalStats.tokensFound = 0;
-      eng.globalStats.stickersFound = 0;
-      eng.globalStats.secretsFound = 0;
+      eng.globalStats.postcardsFound = 0;
+      eng.globalStats.notesFound = 0;
     }
     startLevel(0);
   }, [startLevel]);
@@ -169,6 +174,14 @@ export default function Game() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  if (screen === "intro") {
+    return (
+      <div className="relative h-screen w-screen overflow-hidden bg-[#070512] text-white select-none">
+        <Cinematic onDone={() => setScreen("title")} />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#0c0a1a] text-white select-none">
       <div ref={wrapRef} className="absolute inset-0 flex items-center justify-center">
@@ -190,7 +203,9 @@ export default function Game() {
               <Hud hud={hud} muted={muted} onMute={toggleMute} onPause={togglePause} paused={paused} />
             )}
 
-            {dialogue.length > 0 && screen === "playing" && <DialogueBox lines={dialogue} />}
+            {dialogue.length > 0 && screen === "playing" && (
+              <DialogueBox lines={dialogue} speaker={speaker} />
+            )}
 
             {screen === "title" && <TitleScreen onStart={startGame} muted={muted} onMute={toggleMute} />}
             {screen === "death" && (
@@ -204,9 +219,22 @@ export default function Game() {
               />
             )}
             {screen === "ending" && hud && (
-              <EndingScreen stats={hud.globalStats} onCredits={() => setScreen("credits")} />
+              <EndingScreen
+                stats={hud.globalStats}
+                memories={engineRef.current?.collectedMemories ?? []}
+                onCredits={() => setScreen("credits")}
+              />
             )}
-            {screen === "credits" && <CreditsScreen onTitle={() => setScreen("title")} />}
+            {screen === "credits" && (
+              <CreditsScreen
+                secretUnlocked={engineRef.current?.allNotesFound() ?? false}
+                onTitle={() => setScreen("title")}
+                onSecret={() => setScreen("secret")}
+              />
+            )}
+            {screen === "secret" && (
+              <SecretScreen onTitle={() => setScreen("title")} />
+            )}
             {paused && screen === "playing" && <PauseScreen onResume={togglePause} />}
           </div>
         </div>
@@ -285,8 +313,13 @@ function Hud({
 
       {/* collectible counter bottom-right */}
       <div className="absolute bottom-3 right-3 text-right text-[11px] text-white/85">
-        <div>☾ {hud.stats.moonFound}/{hud.stats.moonTotal} moon fragments</div>
-        <div className="opacity-80">★ stickers {hud.globalStats.stickersFound}</div>
+        <div>★ {hud.globalStats.memoryFound}/{hud.globalStats.memoryTotal} Solstice Memories</div>
+        <div className="opacity-80">✉ postcards {hud.globalStats.postcardsFound}</div>
+        {hud.globalStats.notesFound > 0 && (
+          <div className="text-teal-300/90">
+            ⧉ Encrypted Notes {hud.globalStats.notesFound}/{hud.globalStats.notesTotal}
+          </div>
+        )}
       </div>
 
       {/* control hint */}
@@ -310,15 +343,40 @@ function SunTrack({ stage }: { stage: number }) {
 }
 
 /* ----------------------------- Dialogue ---------------------------- */
-function DialogueBox({ lines }: { lines: string[] }) {
+function DialogueBox({ lines, speaker }: { lines: string[]; speaker: Speaker }) {
+  const isSun = speaker === "sun";
   return (
     <div className="pointer-events-none absolute bottom-16 left-1/2 w-[80%] max-w-xl -translate-x-1/2">
-      <div className="rounded-2xl border border-violet-300/40 bg-[#1a1230]/90 p-3 shadow-xl backdrop-blur">
+      <div
+        className={
+          isSun
+            ? "rounded-2xl border border-amber-300/50 bg-[#2a1e08]/90 p-3 shadow-xl backdrop-blur"
+            : "rounded-2xl border border-violet-300/40 bg-[#1a1230]/90 p-3 shadow-xl backdrop-blur"
+        }
+      >
         <div className="flex items-start gap-3">
-          <Bat size={26} className="mt-0.5 shrink-0 text-violet-200" />
+          {isSun ? (
+            <span className="mt-0.5 shrink-0 text-2xl leading-none text-amber-300" aria-hidden>
+              ☼
+            </span>
+          ) : (
+            <Bat size={26} className="mt-0.5 shrink-0 text-violet-200" />
+          )}
           <div className="space-y-0.5">
+            <div
+              className={
+                isSun
+                  ? "text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/80"
+                  : "text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300/80"
+              }
+            >
+              {isSun ? "The Sun" : "NOX"}
+            </div>
             {lines.map((l, i) => (
-              <p key={i} className="text-sm leading-snug text-violet-100">
+              <p
+                key={i}
+                className={isSun ? "text-sm leading-snug text-amber-50" : "text-sm leading-snug text-violet-100"}
+              >
                 {l}
               </p>
             ))}
@@ -425,9 +483,13 @@ function LevelCompleteScreen({
           Stage Cleared
         </p>
         <div className="mx-auto mt-5 w-64 space-y-1 rounded-xl border border-white/10 bg-black/30 p-4 text-left text-sm text-violet-100/90">
-          <Row label="☾ Moon fragments" value={`${hud.stats.moonFound}/${hud.stats.moonTotal}`} />
+          <Row label="★ Memories" value={`${hud.stats.memoryFound}/${hud.stats.memoryTotal}`} />
+          <Row label="✉ Postcards" value={`${hud.stats.postcardsFound}/${hud.stats.postcardsTotal}`} />
           <Row label="Bat tokens" value={`${hud.stats.tokensFound}`} />
-          <Row label="★ Secret found" value={hud.stats.secretsFound > 0 ? "Yes!" : "Not yet…"} />
+          <Row
+            label="⧉ Encrypted Note"
+            value={hud.stats.notesTotal === 0 ? "—" : hud.stats.notesFound > 0 ? "Found!" : "Hidden…"}
+          />
         </div>
         <div className="mt-6">
           <PrimaryButton onClick={onNext}>Onward →</PrimaryButton>
@@ -446,20 +508,106 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EndingScreen({ stats, onCredits }: { stats: Stats; onCredits: () => void }) {
+const SUNSET_BEATS: { who: "sun" | "nox" | "narrator"; text: string }[] = [
+  { who: "sun", text: "You made it, little one. The longest day is finally ending." },
+  { who: "narrator", text: "The sun slips below the rooftops, gold turning to violet." },
+  { who: "nox", text: "Home. Your coffin's right where you left it." },
+  { who: "narrator", text: "He pulls the blanket up. The lid settles closed with a soft click." },
+  { who: "sun", text: "Goodnight. Rest well — I'll keep tomorrow waiting." },
+];
+
+function EndingScreen({
+  stats,
+  memories,
+  onCredits,
+}: {
+  stats: Stats;
+  memories: MemoryEntry[];
+  onCredits: () => void;
+}) {
+  const [beat, setBeat] = useState(0);
+  const done = beat >= SUNSET_BEATS.length;
+
+  useEffect(() => {
+    if (done) return;
+    const id = window.setTimeout(() => setBeat((b) => b + 1), 3200);
+    return () => window.clearTimeout(id);
+  }, [beat, done]);
+
+  if (!done) {
+    const b = SUNSET_BEATS[beat];
+    const tone =
+      b.who === "sun" ? "text-amber-200" : b.who === "nox" ? "text-violet-200" : "text-violet-100/80";
+    return (
+      <Overlay>
+        <div className="max-w-lg px-8 text-center">
+          <div className="mb-6 text-5xl text-amber-200">☼</div>
+          {b.who !== "narrator" && (
+            <div
+              className={`mb-2 text-[11px] font-bold uppercase tracking-[0.3em] ${b.who === "sun" ? "text-amber-300/80" : "text-violet-300/80"}`}
+            >
+              {b.who === "sun" ? "The Sun" : "NOX"}
+            </div>
+          )}
+          <p className={`mx-auto max-w-md text-lg leading-relaxed ${tone} ${b.who === "narrator" ? "italic" : "font-semibold"}`}>
+            {b.text}
+          </p>
+          <div className="mt-8 flex justify-center gap-1.5">
+            {SUNSET_BEATS.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 w-1.5 rounded-full ${i <= beat ? "bg-amber-300" : "bg-white/20"}`}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => setBeat(SUNSET_BEATS.length)}
+            className="mt-6 text-xs text-violet-200/60 underline-offset-2 hover:underline"
+          >
+            Skip →
+          </button>
+        </div>
+      </Overlay>
+    );
+  }
+
   return (
     <Overlay>
-      <div className="max-w-lg px-6 text-center">
+      <div className="max-h-[92%] max-w-lg overflow-y-auto px-6 py-4 text-center">
         <div className="mb-2 text-5xl text-amber-200">☼</div>
-        <h2 className="text-4xl font-black text-amber-200">Home Before Dark</h2>
+        <h2 className="text-4xl font-black text-amber-200">Survived the Longest Day</h2>
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-violet-100/85">
           The sun finally dips below the rooftops. Our tiny vampire slips through the coffin lid,
           exhausted and a little sunburnt, and NOX flutters down beside him. The longest day is over.
           "Told you we'd make it," NOX whispers. "Now — about tomorrow…"
         </p>
-        <div className="mx-auto mt-5 w-72 space-y-1 rounded-xl border border-white/10 bg-black/30 p-4 text-left text-sm text-violet-100/90">
-          <Row label="☾ Moon fragments" value={`${stats.moonFound}/${stats.moonTotal}`} />
-          <Row label="★ Secret coffins & moons" value={`${stats.secretsFound}/${stats.secretsTotal}`} />
+
+        <div className="mx-auto mt-5 max-w-md rounded-xl border border-amber-200/20 bg-black/30 p-4 text-left">
+          <div className="mb-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">
+            The Solstice Scrapbook · {stats.memoryFound}/{stats.memoryTotal}
+          </div>
+          {memories.length === 0 ? (
+            <p className="py-2 text-center text-sm text-violet-100/70">
+              No memories pressed between these pages — yet. They're still out there in the shade.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {memories.map((m) => (
+                <li key={m.id} className="flex gap-2 text-sm">
+                  <span className="mt-0.5 shrink-0 text-amber-300">★</span>
+                  <span>
+                    <span className="font-bold text-amber-100">{m.label}</span>
+                    {m.desc && <span className="block text-violet-100/75">{m.desc}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mx-auto mt-4 w-72 space-y-1 rounded-xl border border-white/10 bg-black/30 p-4 text-left text-sm text-violet-100/90">
+          <Row label="✉ Postcards" value={`${stats.postcardsFound}/${stats.postcardsTotal}`} />
+          <Row label="⧉ Encrypted Notes" value={`${stats.notesFound}/${stats.notesTotal}`} />
         </div>
         <div className="mt-6">
           <PrimaryButton onClick={onCredits}>Paths Not Taken</PrimaryButton>
@@ -469,7 +617,15 @@ function EndingScreen({ stats, onCredits }: { stats: Stats; onCredits: () => voi
   );
 }
 
-function CreditsScreen({ onTitle }: { onTitle: () => void }) {
+function CreditsScreen({
+  secretUnlocked,
+  onTitle,
+  onSecret,
+}: {
+  secretUnlocked: boolean;
+  onTitle: () => void;
+  onSecret: () => void;
+}) {
   const stops = [
     "Sushi District — moving shadows",
     "Sunny Boardwalk — flip-flop catapults",
@@ -483,9 +639,9 @@ function CreditsScreen({ onTitle }: { onTitle: () => void }) {
       <div className="max-w-lg px-6 text-center">
         <h2 className="text-3xl font-black text-violet-200">Paths Not Taken</h2>
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-violet-100/80">
-          Every festival hid a lost coffin sticker and a secret moon. Some you found; some are still
-          out there, waiting in the shade for another long day. Replay any time to chase the ones
-          that got away.
+          Every festival hid a postcard from the coffin and a glowing Solstice Memory. Some you
+          found; some are still out there, waiting in the shade for another long day. Replay any time
+          to chase the ones that got away.
         </p>
         <ul className="mx-auto mt-5 max-w-xs space-y-1 text-left text-sm text-violet-100/80">
           {stops.map((s) => (
@@ -494,6 +650,43 @@ function CreditsScreen({ onTitle }: { onTitle: () => void }) {
         </ul>
         <p className="mt-6 text-xs text-violet-200/60">
           A wholesome little game about a tiny vampire and a very long day.
+        </p>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          {secretUnlocked && (
+            <button
+              onClick={onSecret}
+              className="rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-8 py-3 text-lg font-black tracking-wide text-white shadow-lg transition hover:scale-105 active:scale-95"
+            >
+              Decode the Notes…
+            </button>
+          )}
+          <PrimaryButton onClick={onTitle}>Back to Title</PrimaryButton>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+function SecretScreen({ onTitle }: { onTitle: () => void }) {
+  return (
+    <Overlay>
+      <div className="max-h-[92%] max-w-lg overflow-y-auto px-6 py-4 text-center">
+        <div className="mb-1 text-xs font-bold uppercase tracking-[0.3em] text-teal-300/80">
+          Achievement Unlocked
+        </div>
+        <h2 className="text-3xl font-black text-teal-200">THE CODEBREAKER</h2>
+        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-violet-100/85">
+          You gathered every Encrypted Note hidden across the long day. Laid side by side, the
+          strange symbols resolve into a single message — left in a quiet garden, long ago, for
+          anyone patient enough to listen.
+        </p>
+        <blockquote className="mx-auto mt-5 max-w-md rounded-xl border border-teal-300/30 bg-black/40 p-5 text-left text-sm leading-relaxed text-teal-100">
+          "We can only see a short distance ahead, but we can see plenty there that needs to be
+          done."
+          <span className="mt-3 block text-right text-xs text-teal-300/70">— for Alan Turing</span>
+        </blockquote>
+        <p className="mx-auto mt-4 max-w-md text-xs leading-relaxed text-violet-100/60">
+          Some puzzles outlive their makers. Thank you for solving this one.
         </p>
         <div className="mt-6">
           <PrimaryButton onClick={onTitle}>Back to Title</PrimaryButton>

@@ -27,13 +27,25 @@ export type ShadeZone = Rect & {
 };
 
 export type Collectible = Rect & {
-  kind: "moon" | "token" | "sticker";
+  /**
+   * memory  — a Solstice Memory (glowing fragment of a summer moment; builds the scrapbook)
+   * token   — a bat token (grants a shield charge)
+   * postcard— a postcard left behind by the coffin (humorous note)
+   * note    — a hidden Encrypted Note (collect all to unlock the secret ending)
+   */
+  kind: "memory" | "token" | "postcard" | "note";
   id: string;
   /** marks a secret/hidden collectible for the "Paths Not Taken" screen */
   secret?: boolean;
+  /** short display name (memory title, postcard sender, etc.) */
   label?: string;
+  /** longer description shown in the scrapbook / on pickup */
+  desc?: string;
   collected?: boolean;
 };
+
+/** Who is speaking a line of dialogue. */
+export type Speaker = "nox" | "sun";
 
 export type BouncePad = Rect & {
   power: number;
@@ -86,6 +98,8 @@ export type LevelTheme = {
   music: string;
   /** index on the solstice tracker 0..5 */
   sunStage: number;
+  /** the Sun's narrator comment for this level (Sun is ancient, calm, curious, amused) */
+  sunLine?: string;
 };
 
 export type PuzzleKind = "none" | "sequence" | "levers" | "narrative";
@@ -121,13 +135,18 @@ export type GameScreen =
   | "death"
   | "levelComplete"
   | "ending"
-  | "credits";
+  | "credits"
+  | "secret";
 
 export type Stats = {
-  moonTotal: number;
-  moonFound: number;
+  memoryTotal: number;
+  memoryFound: number;
   tokensFound: number;
-  stickersFound: number;
-  secretsFound: number;
-  secretsTotal: number;
+  postcardsTotal: number;
+  postcardsFound: number;
+  notesTotal: number;
+  notesFound: number;
 };
+
+/** A collected Solstice Memory, surfaced in the ending scrapbook. */
+export type MemoryEntry = { id: string; label: string; desc: string };

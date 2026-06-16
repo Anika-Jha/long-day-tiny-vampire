@@ -37,6 +37,8 @@ A wholesome browser game where a tiny vampire races the June Solstice — the lo
 ## Gotchas
 
 - Level data objects in `levels.ts` are mutated at runtime (checkpoint `reached`, dialogue `fired`, seq pad `active`, lever `_cool`/`on`, npc `_fired`, gate `open`). `GameEngine.loadLevel()` MUST reset all of these every load, or replays/retries soft-lock (e.g. the Level 3 rainbow bridge cannot rebuild). A fresh run also resets `shields` + collected set in `startGame()`.
+- The narrative/immersion systems add per-load engine state that `loadLevel()` must ALSO reset, or replays misbehave: `scheduled[]` (timed Sun/NOX lines), `ripples[]` (chromesthesia), `daydreamTimer`/`daydreamCooldown` (low-energy daydream), and `criticalFired` (the one-shot "crispy" critical-energy line, re-armed when energy climbs back above ~60). `collectedMemories`/postcard/note found-counts accumulate across the run and reset only in `startGame()`.
+- Game flow starts on the `"intro"` screen (the skippable canvas cinematic in `Cinematic.tsx`, ~35s) → `"title"` → gameplay. The cinematic is a self-contained fullscreen rAF canvas rendered OUTSIDE the scaled VIEW_W/VIEW_H wrapper; it guards `onDone` with a ref so skip (click/key/timeout) fires exactly once.
 
 ## Pointers
 

@@ -4,6 +4,8 @@ import type {
   Rect,
   Collectible,
   Stats,
+  Speaker,
+  MemoryEntry,
 } from "./types";
 import { LEVELS } from "./levels";
 import { audio } from "./audio";
@@ -41,7 +43,7 @@ export type EngineCallbacks = {
   onHud: (h: HudState) => void;
   onDeath: () => void;
   onLevelComplete: (levelIndex: number) => void;
-  onDialogue: (lines: string[]) => void;
+  onDialogue: (lines: string[], speaker?: Speaker) => void;
   onEnding: () => void;
 };
 
@@ -83,13 +85,26 @@ export class GameEngine {
   // collectibles state, by id, persists across the run
   collected = new Set<string>();
   globalStats: Stats = {
-    moonTotal: 0,
-    moonFound: 0,
+    memoryTotal: 0,
+    memoryFound: 0,
     tokensFound: 0,
-    stickersFound: 0,
-    secretsFound: 0,
-    secretsTotal: 0,
+    postcardsTotal: 0,
+    postcardsFound: 0,
+    notesTotal: 0,
+    notesFound: 0,
   };
+  // Solstice Memories collected this run, for the ending scrapbook
+  collectedMemories: MemoryEntry[] = [];
+
+  // one-shot narration flags (reset per life / per level)
+  criticalFired = false;
+  // time-scheduled narration (Sun lines, time-of-day NOX quips)
+  scheduled: { at: number; lines: string[]; speaker: Speaker }[] = [];
+  // daydream (low-energy hallucination) state
+  daydreamTimer = 0;
+  daydreamCooldown = 0;
+  // chromesthesia color ripples (Pride parade — color you can hear)
+  ripples: { x: number; y: number; r: number; max: number; life: number; ttl: number; color: string }[] = [];
 
   // checkpoint
   respawn = { x: 0, y: 0 };
@@ -111,16 +126,24 @@ export class GameEngine {
   }
 
   computeTotals() {
-    let moon = 0;
-    let secrets = 0;
+    let memory = 0;
+    let postcards = 0;
+    let notes = 0;
     for (const lvl of LEVELS) {
       for (const c of lvl.collectibles) {
-        if (c.kind === "moon") moon++;
-        if (c.secret) secrets++;
+        if (c.kind === "memory") memory++;
+        else if (c.kind === "postcard") postcards++;
+        else if (c.kind === "note") notes++;
       }
     }
-    this.globalStats.moonTotal = moon;
-    this.globalStats.secretsTotal = secrets;
+    this.globalStats.memoryTotal = memory;
+    this.globalStats.postcardsTotal = postcards;
+    this.globalStats.notesTotal = notes;
+  }
+
+  /** True once every Encrypted Note has been collected (unlocks the secret ending). */
+  allNotesFound(): boolean {
+    return this.globalStats.notesTotal > 0 && this.globalStats.notesFound >= this.globalStats.notesTotal;
   }
 
   start(levelIndex: number) {
@@ -167,12 +190,48 @@ export class GameEngine {
     }
     if (this.level.npcs) for (const n of this.level.npcs) n._fired = false;
     if (this.level.gate) this.level.gate.open = false;
-    // intro dialogue
+    // reset narration / hallucination state
+    this.criticalFired = false;
+    this.daydreamTimer = 0;
+    this.daydreamCooldown = 3;
+    this.scheduled = [];
+    this.ripples = [];
+    // intro dialogue (NOX)
     const intro = this.level.dialogue.find((d) => d.id.endsWith("d0"));
     if (intro) {
-      this.cb.onDialogue(intro.lines);
+      this.cb.onDialogue(intro.lines, "nox");
       intro.fired = true;
     }
+    // the Sun comments on the journey a beat later, then NOX reacts to the time of day
+    const sun = this.level.theme.sunLine;
+    if (sun) this.scheduled.push({ at: 5.2, lines: [sun], speaker: "sun" });
+    const noxTime = this.noxTimeLine();
+    if (noxTime) this.scheduled.push({ at: 8.8, lines: [noxTime], speaker: "nox" });
+  }
+
+  /** NOX's quip keyed to how far through the day we are. */
+  private noxTimeLine(): string | null {
+    switch (this.level.theme.sunStage) {
+      case 1:
+        return "NOX: We've got plenty of time.";
+      case 3:
+        return "NOX: We absolutely do not have plenty of time.";
+      case 4:
+        return "NOX: I miss darkness.";
+      case 6:
+        return "NOX: Home is close.";
+      default:
+        return null;
+    }
+  }
+
+  /** fire any time-scheduled narration lines that have come due */
+  private fireScheduled() {
+    if (!this.scheduled.length) return;
+    const due = this.scheduled.filter((s) => s.at <= this.time);
+    if (!due.length) return;
+    this.scheduled = this.scheduled.filter((s) => s.at > this.time);
+    for (const s of due) this.cb.onDialogue(s.lines, s.speaker);
   }
 
   stop() {
@@ -246,6 +305,9 @@ export class GameEngine {
 
   update(dt: number) {
     const lvl = this.level;
+
+    // fire any time-of-day narration that has come due
+    this.fireScheduled();
 
     // update moving platforms / shades
     for (const p of [...lvl.platforms, ...lvl.movingShade]) {
@@ -374,6 +436,16 @@ export class GameEngine {
           this.seqProgress++;
           this.buildBridgeSegment(this.seqProgress);
           this.spawnParticles(pad.x + pad.w / 2, pad.y, 12, pad.color);
+          // chromesthesia: the note blooms into a wash of its own color
+          this.ripples.push({
+            x: pad.x + pad.w / 2,
+            y: pad.y + pad.h / 2,
+            r: 8,
+            max: 260,
+            life: 1.1,
+            ttl: 1.1,
+            color: pad.color,
+          });
         } else if (standing && !pad.active && pad.order > this.seqProgress) {
           // stepped out of order — reset
           audio.error();
@@ -417,6 +489,23 @@ export class GameEngine {
         this.energy = 0;
         this.die();
       }
+
+      // critical-energy NOX quip (one-shot; rearms once you recover)
+      if (this.energy < 22 && !this.criticalFired) {
+        this.criticalFired = true;
+        this.cb.onDialogue(["NOX: You look extra crispy."], "nox");
+      } else if (this.energy > 60 && this.criticalFired) {
+        this.criticalFired = false;
+      }
+
+      // daydream / low-energy hallucination
+      this.daydreamCooldown -= dt;
+      if (this.daydreamTimer > 0) {
+        this.daydreamTimer -= dt;
+      } else if (this.energy < 20 && this.daydreamCooldown <= 0) {
+        this.daydreamTimer = 3.5 + Math.random() * 1.5;
+        this.daydreamCooldown = 11;
+      }
     }
 
     // shield timer
@@ -439,21 +528,36 @@ export class GameEngine {
       const pr = { x: this.px, y: this.py, w: PLAYER_W, h: PLAYER_H };
       if (rectsOverlap(pr, c)) {
         this.collected.add(c.id);
-        if (c.kind === "moon") {
-          this.globalStats.moonFound++;
+        if (c.kind === "memory") {
+          this.globalStats.memoryFound++;
+          this.collectedMemories.push({ id: c.id, label: c.label || "A Solstice Memory", desc: c.desc || "" });
           audio.collectMoon();
-          this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 10, "#cfe3ff");
+          this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 12, "#ffe9b0");
+          if (c.label) this.cb.onDialogue([`Memory found: ${c.label}.`, c.desc || ""].filter(Boolean), "nox");
         } else if (c.kind === "token") {
           this.shields++;
           this.globalStats.tokensFound++;
           audio.collectToken();
           this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 10, "#9b6bff");
+        } else if (c.kind === "note") {
+          this.globalStats.notesFound++;
+          audio.collectSticker();
+          this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 14, "#7fd1c4");
+          const n = this.globalStats.notesFound;
+          const tot = this.globalStats.notesTotal;
+          this.cb.onDialogue(
+            this.allNotesFound()
+              ? ["NOX: That's the last Encrypted Note!", "NOX: Something just unlocked. I can feel it."]
+              : [`NOX: An Encrypted Note. Strange symbols... (${n}/${tot})`],
+            "nox",
+          );
         } else {
-          this.globalStats.stickersFound++;
+          // postcard
+          this.globalStats.postcardsFound++;
           audio.collectSticker();
           this.spawnParticles(c.x + c.w / 2, c.y + c.h / 2, 14, "#ffd36b");
+          this.cb.onDialogue([c.desc || "A postcard from your coffin."], "nox");
         }
-        if (c.secret) this.globalStats.secretsFound++;
       }
     }
 
@@ -575,6 +679,12 @@ export class GameEngine {
       p.life -= dt;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
+    // chromesthesia ripples expand and fade
+    for (const r of this.ripples) {
+      r.life -= dt;
+      r.r = r.max * (1 - r.life / r.ttl);
+    }
+    this.ripples = this.ripples.filter((r) => r.life > 0);
   }
 
   die() {
@@ -613,13 +723,17 @@ export class GameEngine {
   }
 
   emitHud(warmth: number) {
+    const cs = this.level.collectibles;
+    const count = (k: Collectible["kind"], onlyCollected = false) =>
+      cs.filter((c) => c.kind === k && (!onlyCollected || this.collected.has(c.id))).length;
     const lvlStats: Stats = {
-      moonTotal: this.level.collectibles.filter((c) => c.kind === "moon").length,
-      moonFound: this.level.collectibles.filter((c) => c.kind === "moon" && this.collected.has(c.id)).length,
-      tokensFound: this.level.collectibles.filter((c) => c.kind === "token" && this.collected.has(c.id)).length,
-      stickersFound: this.level.collectibles.filter((c) => c.kind === "sticker" && this.collected.has(c.id)).length,
-      secretsFound: this.level.collectibles.filter((c) => c.secret && this.collected.has(c.id)).length,
-      secretsTotal: this.level.collectibles.filter((c) => c.secret).length,
+      memoryTotal: count("memory"),
+      memoryFound: count("memory", true),
+      tokensFound: count("token", true),
+      postcardsTotal: count("postcard"),
+      postcardsFound: count("postcard", true),
+      notesTotal: count("note"),
+      notesFound: count("note", true),
     };
     this.cb.onHud({
       energy: this.energy,
@@ -664,6 +778,9 @@ export class GameEngine {
     if (lvl.theme.music === "sushi") this.drawSushiBackdrop(ctx, lvl, W, H);
 
     ctx.translate(-this.camX, -this.camY);
+
+    // dynamic shadows: solids cast a slanted shadow that lengthens with the day
+    this.drawDynamicShadows(ctx, lvl);
 
     // shade zones (drawn as soft canopies)
     for (const z of lvl.shade) this.drawShade(ctx, z);
@@ -756,6 +873,21 @@ export class GameEngine {
     // goal (coffin / door)
     this.drawGoal(ctx, lvl.goal);
 
+    // chromesthesia ripples (rings of audible color)
+    if (this.ripples.length) {
+      ctx.save();
+      for (const rp of this.ripples) {
+        ctx.globalAlpha = Math.max(0, (rp.life / rp.ttl) * 0.5);
+        ctx.strokeStyle = rp.color;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
     // particles
     for (const p of this.particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
@@ -773,6 +905,66 @@ export class GameEngine {
 
     // sun overlay tint as warmth increases / out-of-shade vignette
     this.drawLightOverlay(ctx, lvl, W, H);
+
+    // low-energy daydream haze on top of everything
+    if (this.daydreamTimer > 0) this.drawDaydream(ctx, W, H);
+  }
+
+  /** Solids throw a soft, slanted shadow whose length grows toward sunset. */
+  drawDynamicShadows(ctx: CanvasRenderingContext2D, lvl: Level) {
+    const t = (lvl.theme.sunStage - 1) / 5; // 0 morning .. 1 sunset
+    // shadow leans away from the sun and stretches as the day wears on
+    const lean = (t - 0.5) * 2; // -1 (morning, left) .. +1 (evening, right)
+    const len = 10 + t * 46;
+    ctx.save();
+    ctx.fillStyle = "rgba(20,16,40,0.16)";
+    for (const p of lvl.platforms) {
+      const r = this.liveRect(p);
+      if (r.w < 24) continue;
+      const dx = lean * len;
+      ctx.beginPath();
+      ctx.moveTo(r.x, r.y + r.h);
+      ctx.lineTo(r.x + r.w, r.y + r.h);
+      ctx.lineTo(r.x + r.w + dx, r.y + r.h + len);
+      ctx.lineTo(r.x + dx, r.y + r.h + len);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** A brief, gentle hallucination when the vampire is running on fumes. */
+  drawDaydream(ctx: CanvasRenderingContext2D, W: number, H: number) {
+    const fade = Math.min(1, this.daydreamTimer, 0.6);
+    ctx.save();
+    // warm wobble haze
+    ctx.globalAlpha = 0.18 * fade;
+    const g = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.7);
+    g.addColorStop(0, "rgba(255,225,160,0)");
+    g.addColorStop(1, "rgba(120,80,160,0.9)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // drifting daydream glyphs (a cozy coffin, little moons)
+    ctx.globalAlpha = 0.5 * fade;
+    ctx.fillStyle = "#fff2c8";
+    ctx.font = "26px system-ui";
+    ctx.textAlign = "center";
+    for (let i = 0; i < 4; i++) {
+      const dx = (Math.sin(this.time * 1.3 + i * 1.7) * 0.5 + 0.5) * W;
+      const dy = ((this.time * 22 + i * 90) % (H + 60)) - 30;
+      ctx.fillText(i % 2 === 0 ? "☾" : "★", dx, dy);
+    }
+    // a daydreamy thought, kept light
+    ctx.globalAlpha = 0.8 * fade;
+    ctx.fillStyle = "rgba(20,12,30,0.7)";
+    this.roundRect(ctx, W / 2 - 170, 60, 340, 40, 14);
+    ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = "#ffe9b8";
+    ctx.font = "italic 15px system-ui";
+    ctx.fillText("...mmm, a cool dark coffin and a nice long nap...", W / 2, 85);
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   drawSun(ctx: CanvasRenderingContext2D, lvl: Level, W: number, H: number) {
@@ -1170,18 +1362,41 @@ export class GameEngine {
     const cx = c.x + c.w / 2;
     const cy = c.y + c.h / 2 + bob;
     ctx.save();
-    if (c.kind === "moon") {
-      ctx.shadowColor = "rgba(180,200,255,0.9)";
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = "#dbe7ff";
+    if (c.kind === "memory") {
+      // a glowing Solstice Memory — a warm summer-light orb with a soft star
+      const r = c.w / 2;
+      ctx.shadowColor = "rgba(255,210,120,0.95)";
+      ctx.shadowBlur = 18;
+      const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+      g.addColorStop(0, "#fff6dc");
+      g.addColorStop(1, "#ffce6b");
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(cx, cy, c.w / 2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.fillStyle = c.kind === "moon" ? "rgba(150,170,220,0.5)" : "#fff";
-      ctx.beginPath();
-      ctx.arc(cx + 4, cy - 2, c.w / 3, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.font = "13px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("★", cx, cy + 1);
+    } else if (c.kind === "note") {
+      // an Encrypted Note — a teal slip with cipher marks
+      ctx.shadowColor = "rgba(127,209,196,0.85)";
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = "#e9fff9";
+      this.roundRect(ctx, c.x, cy - c.h / 2, c.w, c.h, 3);
       ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "#2f8f7f";
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const ly = cy - c.h / 2 + 7 + i * 6;
+        ctx.beginPath();
+        ctx.moveTo(c.x + 4, ly);
+        ctx.lineTo(c.x + c.w - 4, ly);
+        ctx.stroke();
+      }
     } else if (c.kind === "token") {
       ctx.shadowColor = "rgba(155,107,255,0.9)";
       ctx.shadowBlur = 14;
@@ -1204,17 +1419,20 @@ export class GameEngine {
       ctx.quadraticCurveTo(cx + 6, cy, cx, cy + 2);
       ctx.fill();
     } else {
-      // sticker
+      // postcard — a little envelope from the coffin
       ctx.shadowColor = "rgba(255,211,107,0.9)";
       ctx.shadowBlur = 14;
-      ctx.fillStyle = "#ffd36b";
-      this.roundRect(ctx, c.x, cy - c.h / 2, c.w, c.h, 4);
+      ctx.fillStyle = "#ffe9b8";
+      this.roundRect(ctx, c.x, cy - c.h / 2, c.w, c.h, 3);
       ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.fillStyle = "#5a3a1a";
-      ctx.font = "12px system-ui";
-      ctx.textAlign = "center";
-      ctx.fillText("★", cx, cy + 4);
+      ctx.strokeStyle = "#b8893a";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(c.x, cy - c.h / 2);
+      ctx.lineTo(cx, cy + 1);
+      ctx.lineTo(c.x + c.w, cy - c.h / 2);
+      ctx.stroke();
     }
     ctx.restore();
   }
