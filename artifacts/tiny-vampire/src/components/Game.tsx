@@ -71,21 +71,24 @@ export default function Game() {
     );
   }, []);
 
-  // init engine once canvas exists
-  useEffect(() => {
-    if (!canvasRef.current || engineRef.current) return;
-    const engine = new GameEngine(canvasRef.current, {
+  // init engine the moment the canvas element mounts (callback ref so it works
+  // no matter when the canvas appears — e.g. after the intro cinematic).
+  const showDialogueRef = useRef(showDialogue);
+  showDialogueRef.current = showDialogue;
+  const mountCanvas = useCallback((node: HTMLCanvasElement | null) => {
+    canvasRef.current = node;
+    if (!node || engineRef.current) return;
+    engineRef.current = new GameEngine(node, {
       onHud: (h) => setHud(h),
       onDeath: () => setScreen("death"),
       onLevelComplete: (idx) => {
         setCompletedIndex(idx);
         setScreen("levelComplete");
       },
-      onDialogue: showDialogue,
+      onDialogue: (lines, who) => showDialogueRef.current(lines, who),
       onEnding: () => setScreen("ending"),
     });
-    engineRef.current = engine;
-  }, [showDialogue]);
+  }, []);
 
   const toggleMute = useCallback(() => {
     const m = !audio.muted;
@@ -172,7 +175,7 @@ export default function Game() {
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [screen]);
 
   if (screen === "intro") {
     return (
@@ -187,7 +190,7 @@ export default function Game() {
       <div ref={wrapRef} className="absolute inset-0 flex items-center justify-center">
         <div className="relative" style={{ width: VIEW_W * scale, height: VIEW_H * scale }}>
           <canvas
-            ref={canvasRef}
+            ref={mountCanvas}
             width={VIEW_W}
             height={VIEW_H}
             className="absolute left-0 top-0 origin-top-left rounded-lg shadow-2xl"
