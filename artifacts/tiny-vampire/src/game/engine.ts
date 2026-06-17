@@ -856,6 +856,8 @@ export class GameEngine {
     // level-specific backdrop decoration
     if (lvl.theme.music === "sushi") this.drawSushiBackdrop(ctx, lvl, W, H);
     else if (lvl.id === 2) this.drawBeachBackdrop(ctx, lvl, W, H);
+    else if (lvl.id === 4) this.drawGardenBackdrop(ctx, lvl, W, H);
+    else if (lvl.id === 6) this.drawSunsetBackdrop(ctx, lvl, W, H);
 
     // National Flip-Flop Day garland strung across the top of the beach
     if (lvl.id === 2) this.drawFlipFlopBunting(ctx, W, H);
@@ -1259,6 +1261,150 @@ export class GameEngine {
       i++;
     }
     ctx.restore();
+  }
+
+  /** A tiny fluttering butterfly used to liven up the garden level. */
+  drawButterfly(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, phase: number) {
+    const flap = 0.25 + Math.abs(Math.sin(phase * 6)) * 0.85;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(-4, -1, 5 * flap, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(4, -1, 5 * flap, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(-3, 5, 3.5 * flap, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(3, 5, 3.5 * flap, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#3a2f56";
+    ctx.fillRect(-1, -7, 2, 15);
+    ctx.restore();
+  }
+
+  /** Alan Turing's Garden atmosphere: topiary hedges, drifting cipher runes, butterflies. */
+  drawGardenBackdrop(ctx: CanvasRenderingContext2D, lvl: Level, W: number, H: number) {
+    const t = this.time;
+    const horizon = H - 116;
+    ctx.save();
+
+    // distant topiary hedge row with the occasional sculpted ball (slow parallax)
+    const span = 150;
+    const off = ((this.camX * 0.12) % span + span) % span;
+    ctx.fillStyle = this.shade(lvl.theme.ground, 1.3);
+    ctx.globalAlpha = 0.5;
+    for (let i = -1; i < Math.ceil(W / span) + 2; i++) {
+      const bx = i * span - off;
+      ctx.beginPath();
+      ctx.ellipse(bx, horizon, 64, 36, 0, Math.PI, 0);
+      ctx.fill();
+      if (i % 2 === 0) {
+        ctx.fillRect(bx - 3, horizon - 54, 6, 54);
+        ctx.beginPath();
+        ctx.arc(bx, horizon - 60, 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // cipher runes drifting upward like spores — a nod to the codebreaker's garden
+    const runes = ["\u25B3", "\u25C7", "\u25EF", "\u2606", "\u25BD", "\u25A1"];
+    ctx.font = "20px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = lvl.theme.accent;
+    for (let k = 0; k < 14; k++) {
+      const baseX = (k * 173.3) % W;
+      const sway = Math.sin(t * 0.6 + k) * 18;
+      const rx = ((baseX + sway) % W + W) % W;
+      const ry = H - ((t * (12 + (k % 4) * 6) + k * 80) % (H + 60));
+      ctx.globalAlpha = 0.1 + 0.12 * Math.abs(Math.sin(t + k));
+      ctx.fillText(runes[k % runes.length], rx, ry);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+
+    // butterflies fluttering across the garden
+    const wings = ["#ff9ad1", "#7fd1c4", "#ffe14d", "#b48cff"];
+    for (let i = 0; i < 4; i++) {
+      const bx = ((t * (20 + i * 8) + i * 260) % (W + 100)) - 50;
+      const by = H * (0.28 + i * 0.13) + Math.sin(t * 2 + i) * 26;
+      this.drawButterfly(ctx, bx, by, wings[i], t + i);
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /** Sunset finale atmosphere: emerging stars, a rising crescent moon, a tree line, fireflies. */
+  drawSunsetBackdrop(ctx: CanvasRenderingContext2D, lvl: Level, W: number, H: number) {
+    const t = this.time;
+    const horizon = H - 116;
+    ctx.save();
+
+    // first stars of the night, twinkling in the upper, darker sky
+    for (let k = 0; k < 40; k++) {
+      const sxp = (k * 89.7) % W;
+      const syp = (k * 53.3) % (H * 0.5);
+      ctx.globalAlpha = (0.3 + 0.7 * Math.abs(Math.sin(t * 1.5 + k))) * 0.8;
+      ctx.fillStyle = "#fff3d6";
+      ctx.fillRect(sxp, syp, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // a gentle rising crescent moon — the night the vampire is finally walking into
+    const mx = W * 0.28 - this.camX * 0.03;
+    const my = H * 0.2 + Math.sin(t * 0.4) * 4;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.shadowColor = "rgba(220,230,255,0.6)";
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = "rgba(232,238,255,0.96)";
+    ctx.beginPath();
+    ctx.arc(mx, my, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(mx + 13, my - 6, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // silhouetted tree line along the horizon (parallax)
+    const span = 130;
+    const off = ((this.camX * 0.16) % span + span) % span;
+    ctx.fillStyle = "rgba(40,28,58,0.7)";
+    for (let i = -1; i < Math.ceil(W / span) + 2; i++) {
+      const bx = i * span - off + 40;
+      const th = 56 + ((i * 37) % 30);
+      ctx.beginPath();
+      ctx.moveTo(bx, horizon);
+      ctx.lineTo(bx - 16, horizon);
+      ctx.lineTo(bx, horizon - th);
+      ctx.lineTo(bx + 16, horizon);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(bx - 2, horizon - th * 0.5, 4, th * 0.5);
+    }
+
+    // fireflies drifting near the ground, blinking warmly
+    for (let i = 0; i < 18; i++) {
+      const fx = ((i * 151.3 - this.camX * 0.25) % W + W) % W;
+      const fy = H * (0.56 + (i % 5) * 0.07) + Math.sin(t * 1.2 + i) * 16;
+      const glow = 0.3 + 0.7 * Math.abs(Math.sin(t * 2 + i * 1.3));
+      ctx.fillStyle = "#ffe89a";
+      ctx.globalAlpha = glow * 0.9;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = glow * 0.22;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   /** Carved cipher plaque above the levers showing the (randomized) target pattern. */
