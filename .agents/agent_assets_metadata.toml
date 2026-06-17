@@ -1,0 +1,38 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "79KdPqEBLzZBtDJ2lxZAV"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l1s1.png"
+type = "image"
+title = "sushi district postcard"
+
+[[generated]]
+id = "3TQpspdynbmiOgnms7EXO"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l2s1.png"
+type = "image"
+title = "sunny boardwalk postcard"
+
+[[generated]]
+id = "DVJUNLxm-lS5ZzAaxfaT-"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l3s1.png"
+type = "image"
+title = "pride parade postcard"
+
+[[generated]]
+id = "CKtwNvahnfiUYtE0RYxWd"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l4s1.png"
+type = "image"
+title = "turing garden postcard"
+
+[[generated]]
+id = "Cg6WoGRH3sGOjtS3ipd84"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l5s1.png"
+type = "image"
+title = "heatwave plaza postcard"
+
+[[generated]]
+id = "nO3tPpEiayEX_Gb3L0Od2"
+uri = "file://artifacts/tiny-vampire/src/assets/postcards/l6s1.png"
+type = "image"
+title = "almost home postcard"

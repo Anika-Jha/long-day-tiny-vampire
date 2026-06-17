@@ -5,6 +5,21 @@ import type { Stats, Speaker, MemoryEntry } from "@/game/types";
 import { SUN_STAGES } from "@/game/levels";
 import { audio } from "@/game/audio";
 import Cinematic from "./Cinematic";
+import pcSushi from "@/assets/postcards/l1s1.png";
+import pcBoardwalk from "@/assets/postcards/l2s1.png";
+import pcParade from "@/assets/postcards/l3s1.png";
+import pcGarden from "@/assets/postcards/l4s1.png";
+import pcPlaza from "@/assets/postcards/l5s1.png";
+import pcHome from "@/assets/postcards/l6s1.png";
+
+const POSTCARD_IMAGES: Record<string, string> = {
+  l1s1: pcSushi,
+  l2s1: pcBoardwalk,
+  l3s1: pcParade,
+  l4s1: pcGarden,
+  l5s1: pcPlaza,
+  l6s1: pcHome,
+};
 
 type Screen =
   | "title"
@@ -69,6 +84,11 @@ export default function Game() {
       () => setDialogue([]),
       2600 + lines.join(" ").length * 30,
     );
+  }, []);
+
+  const dismissDialogue = useCallback(() => {
+    if (dialogueTimer.current) window.clearTimeout(dialogueTimer.current);
+    setDialogue([]);
   }, []);
 
   // init engine the moment the canvas element mounts (callback ref so it works
@@ -208,7 +228,12 @@ export default function Game() {
             )}
 
             {dialogue.length > 0 && screen === "playing" && (
-              <DialogueBox lines={dialogue} speaker={speaker} />
+              <DialogueBox
+                lines={dialogue}
+                speaker={speaker}
+                sunStage={hud?.sunStage ?? 1}
+                onDismiss={dismissDialogue}
+              />
             )}
 
             {screen === "title" && <TitleScreen onStart={startGame} muted={muted} onMute={toggleMute} />}
@@ -348,15 +373,44 @@ function SunTrack({ stage }: { stage: number }) {
 }
 
 /* ----------------------------- Dialogue ---------------------------- */
-function DialogueBox({ lines, speaker }: { lines: string[]; speaker: Speaker }) {
+function DialogueBox({
+  lines,
+  speaker,
+  sunStage,
+  onDismiss,
+}: {
+  lines: string[];
+  speaker: Speaker;
+  sunStage: number;
+  onDismiss: () => void;
+}) {
   const isSun = speaker === "sun";
+
+  // The Sun speaks from up in the sky, near where it's actually drawn; NOX speaks
+  // from the bottom. Either box can be tapped to dismiss when it blocks the path.
+  let posStyle: React.CSSProperties;
+  if (isSun) {
+    const t = (Math.max(1, Math.min(6, sunStage)) - 1) / 5;
+    const sx = VIEW_W * (0.12 + t * 0.76);
+    const sy = VIEW_H * (0.5 - Math.sin(t * Math.PI) * 0.38) + 40;
+    const w = 320;
+    const left = Math.max(8, Math.min(VIEW_W - w - 8, sx - w / 2));
+    const top = Math.max(60, Math.min(330, sy + 56));
+    posStyle = { left, top, width: w };
+  } else {
+    posStyle = { left: "50%", bottom: 64, width: "80%", maxWidth: 576, transform: "translateX(-50%)" };
+  }
+
   return (
-    <div className="pointer-events-none absolute bottom-16 left-1/2 w-[80%] max-w-xl -translate-x-1/2">
-      <div
+    <div className="absolute" style={posStyle}>
+      <button
+        type="button"
+        onClick={onDismiss}
         className={
-          isSun
-            ? "rounded-2xl border border-amber-300/50 bg-[#2a1e08]/90 p-3 shadow-xl backdrop-blur"
-            : "rounded-2xl border border-violet-300/40 bg-[#1a1230]/90 p-3 shadow-xl backdrop-blur"
+          (isSun
+            ? "border-amber-300/50 bg-[#2a1e08]/90"
+            : "border-violet-300/40 bg-[#1a1230]/90") +
+          " block w-full cursor-pointer rounded-2xl border p-3 text-left shadow-xl backdrop-blur transition hover:brightness-110"
         }
       >
         <div className="flex items-start gap-3">
@@ -367,7 +421,7 @@ function DialogueBox({ lines, speaker }: { lines: string[]; speaker: Speaker }) 
           ) : (
             <Bat size={26} className="mt-0.5 shrink-0 text-violet-200" />
           )}
-          <div className="space-y-0.5">
+          <div className="min-w-0 flex-1 space-y-0.5">
             <div
               className={
                 isSun
@@ -385,9 +439,17 @@ function DialogueBox({ lines, speaker }: { lines: string[]; speaker: Speaker }) 
                 {l}
               </p>
             ))}
+            <div
+              className={
+                "pt-1 text-[9px] uppercase tracking-[0.18em] " +
+                (isSun ? "text-amber-200/50" : "text-violet-200/45")
+              }
+            >
+              tap to dismiss
+            </div>
           </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 }
@@ -522,30 +584,31 @@ const SUNSET_BEATS: { who: "sun" | "nox" | "narrator"; text: string }[] = [
 ];
 
 /** A drawn little postcard with the coffin's handwritten note. */
-function Postcard({ label, desc, tilt }: { label: string; desc: string; tilt: number }) {
+function Postcard({ id, label, desc, tilt }: { id: string; label: string; desc: string; tilt: number }) {
   const place = label.replace(/^Postcard:\s*/i, "");
+  const img = POSTCARD_IMAGES[id];
   return (
     <div
-      className="w-40 shrink-0 rounded-md border border-amber-100/30 bg-gradient-to-br from-amber-50 to-orange-100 p-2 text-left text-[#3a2a1a] shadow-lg"
+      className="w-44 shrink-0 rounded-md border border-amber-100/30 bg-gradient-to-br from-amber-50 to-orange-100 p-2 text-left text-[#3a2a1a] shadow-lg"
       style={{ transform: `rotate(${tilt * 2.5}deg)` }}
     >
-      <div className="flex gap-1.5">
-        {/* little stamp + scene */}
-        <div className="flex h-12 w-12 shrink-0 items-end justify-center overflow-hidden rounded-sm bg-gradient-to-b from-sky-300 to-amber-200">
-          <span className="mb-0.5 text-[10px]">☼ ☾</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[11px] font-black uppercase tracking-wide text-orange-800">
-            {place}
+      {/* postcard photo */}
+      <div className="relative overflow-hidden rounded-sm border border-amber-200/70 bg-sky-200">
+        {img ? (
+          <img src={img} alt={place} className="block h-24 w-full object-cover" draggable={false} />
+        ) : (
+          <div className="flex h-24 w-full items-end justify-center bg-gradient-to-b from-sky-300 to-amber-200">
+            <span className="mb-1 text-xs">☼ ☾</span>
           </div>
-          <div className="mt-0.5 flex justify-end">
-            <span className="inline-block rounded-sm border border-rose-300 bg-rose-200 px-1 text-[8px] text-rose-700">
-              ★
-            </span>
-          </div>
-        </div>
+        )}
+        <span className="absolute right-1 top-1 rounded-sm border border-rose-300 bg-rose-200/90 px-1 text-[8px] text-rose-700">
+          ★
+        </span>
       </div>
-      <p className="mt-1 border-t border-amber-200/60 pt-1 text-[10px] italic leading-snug text-[#5a4030]">
+      <div className="mt-1 truncate text-[11px] font-black uppercase tracking-wide text-orange-800">
+        {place}
+      </div>
+      <p className="mt-0.5 border-t border-amber-200/60 pt-1 text-[10px] italic leading-snug text-[#5a4030]">
         {desc}
       </p>
     </div>
@@ -683,7 +746,7 @@ function EndingScreen({
             </div>
             <div className="flex flex-wrap justify-center gap-3">
               {postcards.map((p, i) => (
-                <Postcard key={p.id} label={p.label} desc={p.desc} tilt={(i % 3) - 1} />
+                <Postcard key={p.id} id={p.id} label={p.label} desc={p.desc} tilt={(i % 3) - 1} />
               ))}
             </div>
           </div>
@@ -774,7 +837,21 @@ function CreditsScreen({
   );
 }
 
+const TURING_QUOTES = [
+  "We can only see a short distance ahead, but we can see plenty there that needs to be done.",
+  "Sometimes it is the people no one imagines anything of who do the things that no one can imagine.",
+  "A computer would deserve to be called intelligent if it could deceive a human into believing that it was human.",
+  "Machines take me by surprise with great frequency.",
+  "Those who can imagine anything, can create the impossible.",
+  "We are not interested in the fact that the brain has the consistency of cold porridge.",
+  "Science is a differential equation. Religion is a boundary condition.",
+  "I am not interested in developing a powerful brain. All I'm after is just a mediocre brain.",
+];
+
 function SecretScreen({ onTitle }: { onTitle: () => void }) {
+  const [quote] = useState(
+    () => TURING_QUOTES[Math.floor(Math.random() * TURING_QUOTES.length)],
+  );
   return (
     <Overlay>
       <div className="max-h-[92%] max-w-lg overflow-y-auto px-6 py-4 text-center">
@@ -788,8 +865,7 @@ function SecretScreen({ onTitle }: { onTitle: () => void }) {
           anyone patient enough to listen.
         </p>
         <blockquote className="mx-auto mt-5 max-w-md rounded-xl border border-teal-300/30 bg-black/40 p-5 text-left text-sm leading-relaxed text-teal-100">
-          "We can only see a short distance ahead, but we can see plenty there that needs to be
-          done."
+          "{quote}"
           <span className="mt-3 block text-right text-xs text-teal-300/70">— for Alan Turing</span>
         </blockquote>
         <p className="mx-auto mt-4 max-w-md text-xs leading-relaxed text-violet-100/60">

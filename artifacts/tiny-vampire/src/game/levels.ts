@@ -246,11 +246,11 @@ const level4: Level = {
   leverSolution: [true, false, true],
   gate: { x: 1620, y: 200, w: 30, h: 300, open: false },
   dialogue: [
-    { id: "l4d0", x: 40, lines: ["NOX: A codebreaker's garden. Spooky and elegant.", "NOX: Flip the cipher levers to match the carved pattern.", "NOX: Triangle ON, diamond OFF, circle ON. The gate listens."] },
-    { id: "l4d1", x: 1180, lines: ["NOX: The wall shows the answer if you look closely.", "NOX: Match it exactly and the gate slides away."] },
+    { id: "l4d0", x: 40, lines: ["NOX: A codebreaker's garden. Spooky and elegant.", "NOX: Read the carved runes on the plaque above the levers.", "NOX: Lit rune means ON, dim rune means OFF. The gate listens."] },
+    { id: "l4d1", x: 1180, lines: ["NOX: The cipher resets every visit — read it fresh.", "NOX: Match each lever by its rune, not by its place."] },
   ],
   puzzle: "levers",
-  hint: "Set the levers to: △ on, ◇ off, ◯ on.",
+  hint: "Match each lever to its carved rune — lit = on, dim = off.",
 };
 
 /* ----------------------- LEVEL 5: LONGEST AFTERNOON --------------------- */

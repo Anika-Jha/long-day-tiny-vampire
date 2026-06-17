@@ -114,6 +114,10 @@ export class GameEngine {
   seqProgress = 0;
   bridgeBuilt: Rect[] = [];
   leverState: boolean[] = [];
+  // cipher puzzle is reshuffled every load: target pattern + which rune each lever shows
+  leverWant: boolean[] = [];
+  leverSymbols: string[] = [];
+  leverPlaqueOrder: number[] = [];
   gateOpen = false;
 
   keys: Keys = {};
@@ -175,6 +179,29 @@ export class GameEngine {
     this.bridgeBuilt = [];
     this.gateOpen = false;
     this.leverState = (this.level.levers || []).map(() => false);
+    // reshuffle the cipher puzzle so Turing's Garden differs every play
+    if (this.level.puzzle === "levers" && this.level.levers) {
+      const n = this.level.levers.length;
+      const pool = ["△", "◇", "◯", "☆", "▽", "□", "✶"];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      this.leverSymbols = pool.slice(0, n);
+      const want = this.level.levers.map(() => Math.random() < 0.5);
+      if (!want.some(Boolean)) want[Math.floor(Math.random() * n)] = true;
+      this.leverWant = want;
+      const order = this.level.levers.map((_, i) => i);
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      this.leverPlaqueOrder = order;
+    } else {
+      this.leverSymbols = [];
+      this.leverWant = [];
+      this.leverPlaqueOrder = [];
+    }
     this.particles = [];
     // reset moving platform offsets
     for (const p of [...this.level.platforms, ...this.level.movingShade]) {
@@ -640,7 +667,7 @@ export class GameEngine {
   }
 
   checkLevers() {
-    const sol = this.level.leverSolution || [];
+    const sol = this.leverWant;
     const match = sol.length > 0 && sol.every((v, i) => v === this.leverState[i]);
     if (match && !this.gateOpen) {
       this.gateOpen = true;
@@ -817,9 +844,25 @@ export class GameEngine {
       ctx.restore();
     }
 
+    // cipher plaque — the carved pattern the levers must match (reshuffled each play)
+    if (lvl.puzzle === "levers" && lvl.levers && this.leverWant.length) {
+      this.drawCipherPlaque(ctx, lvl);
+    }
+
     // seq pads
     if (lvl.seqPads) {
       for (const pad of lvl.seqPads) {
+        // pulse a glowing ring around the next pad to step, to guide the player
+        if (!pad.active && pad.order === this.seqProgress) {
+          const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+          ctx.save();
+          ctx.globalAlpha = 0.35 + pulse * 0.45;
+          ctx.strokeStyle = pad.color;
+          ctx.lineWidth = 3;
+          this.roundRect(ctx, pad.x - 5, pad.y - 5, pad.w + 10, pad.h + 10, 9);
+          ctx.stroke();
+          ctx.restore();
+        }
         ctx.save();
         ctx.globalAlpha = pad.active ? 1 : 0.55;
         ctx.fillStyle = pad.color;
@@ -854,7 +897,7 @@ export class GameEngine {
         ctx.fillStyle = "rgba(255,255,255,0.95)";
         ctx.font = "16px system-ui";
         ctx.textAlign = "center";
-        ctx.fillText(lv.symbol, lv.x + lv.w / 2, lv.y + 22);
+        ctx.fillText(this.leverSymbols[lv.id] ?? lv.symbol, lv.x + lv.w / 2, lv.y + 22);
       }
     }
 
@@ -875,6 +918,9 @@ export class GameEngine {
 
     // moving shade objects (trays/clouds) drawn above
     for (const m of lvl.movingShade) this.drawMovingShade(ctx, this.liveRect(m), m);
+
+    // pride parade flair — bunting + drifting confetti over the parade route
+    if (lvl.id === 3) this.drawParade(ctx, W, H);
 
     // goal (coffin / door)
     this.drawGoal(ctx, lvl.goal);
@@ -993,6 +1039,103 @@ export class GameEngine {
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  /** Pride parade flair: rainbow bunting strung across the top + drifting confetti. */
+  drawParade(ctx: CanvasRenderingContext2D, W: number, H: number) {
+    const time = performance.now() * 0.001;
+    const colors = ["#ff5d5d", "#ffb13d", "#ffe14d", "#54d96a", "#4fa3ff", "#9b6bff"];
+    ctx.save();
+    // bunting string
+    const span = 64;
+    const off = ((this.camX * 0.25) % span + span) % span;
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = -span; x <= W + span; x += 8) {
+      const yy = 8 + Math.sin((x + off) * 0.03) * 5;
+      if (x === -span) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+    // triangular pennants
+    let i = 0;
+    for (let x = -span - off; x <= W + span; x += span) {
+      const yTop = 8 + Math.sin((x + off) * 0.03) * 5;
+      const wob = Math.sin(time * 2 + i) * 3;
+      ctx.fillStyle = colors[((i % colors.length) + colors.length) % colors.length];
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(x, yTop);
+      ctx.lineTo(x + span, yTop);
+      ctx.lineTo(x + span / 2 + wob, yTop + 26);
+      ctx.closePath();
+      ctx.fill();
+      i++;
+    }
+    ctx.globalAlpha = 1;
+    // drifting confetti
+    for (let k = 0; k < 48; k++) {
+      const speed = 28 + (k % 6) * 14;
+      const baseX = (k * 137.5) % W;
+      const sway = Math.sin(time * 1.4 + k) * 14;
+      const cx = ((baseX + sway) % W + W) % W;
+      const cy = ((time * speed + k * 53) % (H + 40)) - 20;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(time * 3 + k);
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = colors[k % colors.length];
+      ctx.fillRect(-3, -3, 6, 5);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  /** Carved cipher plaque above the levers showing the (randomized) target pattern. */
+  drawCipherPlaque(ctx: CanvasRenderingContext2D, lvl: Level) {
+    const levers = lvl.levers!;
+    const n = levers.length;
+    const cell = 60;
+    const padX = 14;
+    const w = n * cell + padX * 2;
+    const h = 92;
+    const cxCenter = levers.reduce((s, l) => s + l.x + l.w / 2, 0) / n;
+    const x = cxCenter - w / 2;
+    const y = (lvl.gate ? lvl.gate.y : 240) + 36;
+    const order = this.leverPlaqueOrder.length ? this.leverPlaqueOrder : levers.map((_, idx) => idx);
+    ctx.save();
+    // stone tablet
+    ctx.fillStyle = "rgba(40,52,50,0.92)";
+    this.roundRect(ctx, x, y, w, h, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(127,209,196,0.55)";
+    ctx.lineWidth = 2;
+    this.roundRect(ctx, x, y, w, h, 10);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(199,240,232,0.9)";
+    ctx.font = "bold 11px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("MATCH THE RUNES", x + w / 2, y + 18);
+    for (let k = 0; k < n; k++) {
+      const li = order[k];
+      const cellX = x + padX + k * cell + cell / 2;
+      const on = this.leverWant[li];
+      ctx.fillStyle = on ? "#ffe6a3" : "rgba(170,180,178,0.5)";
+      ctx.font = "22px system-ui";
+      ctx.fillText(this.leverSymbols[li] ?? levers[li].symbol, cellX, y + 50);
+      ctx.beginPath();
+      ctx.arc(cellX, y + 66, 6, 0, Math.PI * 2);
+      ctx.fillStyle = on ? "#7fd1c4" : "#3a3f3d";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(220,235,232,0.75)";
+      ctx.font = "8px system-ui";
+      ctx.fillText(on ? "ON" : "OFF", cellX, y + 84);
+    }
     ctx.restore();
   }
 
