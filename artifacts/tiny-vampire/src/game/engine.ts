@@ -809,6 +809,10 @@ export class GameEngine {
 
     // level-specific backdrop decoration
     if (lvl.theme.music === "sushi") this.drawSushiBackdrop(ctx, lvl, W, H);
+    else if (lvl.id === 2) this.drawBeachBackdrop(ctx, lvl, W, H);
+
+    // National Flip-Flop Day garland strung across the top of the beach
+    if (lvl.id === 2) this.drawFlipFlopBunting(ctx, W, H);
 
     ctx.translate(-this.camX, -this.camY);
 
@@ -1089,6 +1093,121 @@ export class GameEngine {
       ctx.fillStyle = colors[k % colors.length];
       ctx.fillRect(-3, -3, 6, 5);
       ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  /** Beach atmosphere for National Flip-Flop Day: clouds, gulls, a sailboat, sea glitter. */
+  drawBeachBackdrop(ctx: CanvasRenderingContext2D, _lvl: Level, W: number, H: number) {
+    const t = this.time;
+    ctx.save();
+    // drifting fluffy clouds (slow parallax)
+    const wrap = W + 240;
+    const cloudOff = ((this.camX * 0.08) % wrap + wrap) % wrap;
+    for (let i = 0; i < 3; i++) {
+      const cxp = ((i * (W / 2 + 130) - cloudOff) % wrap + wrap) % wrap - 120;
+      const cyp = H * (0.16 + i * 0.07) + Math.sin(t * 0.5 + i) * 6;
+      ctx.globalAlpha = 0.85;
+      this.drawCloud(ctx, cxp, cyp, 150, 34);
+    }
+    // a little sailboat drifting along the horizon
+    const horizon = H - 116;
+    const bx = ((t * 10) % (W + 200)) - 100 - this.camX * 0.04;
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#3a2f56";
+    ctx.beginPath();
+    ctx.moveTo(bx - 16, horizon - 26);
+    ctx.lineTo(bx + 16, horizon - 26);
+    ctx.lineTo(bx + 10, horizon - 18);
+    ctx.lineTo(bx - 10, horizon - 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.moveTo(bx, horizon - 56);
+    ctx.lineTo(bx, horizon - 28);
+    ctx.lineTo(bx + 16, horizon - 28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ff9a3d";
+    ctx.beginPath();
+    ctx.moveTo(bx - 2, horizon - 54);
+    ctx.lineTo(bx - 2, horizon - 30);
+    ctx.lineTo(bx - 16, horizon - 30);
+    ctx.closePath();
+    ctx.fill();
+    // seagulls gliding (simple V wings)
+    ctx.strokeStyle = "rgba(60,50,80,0.7)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const gx = ((t * 18 + i * 220) % (W + 120)) - 60;
+      const gy = H * 0.2 + Math.sin(t * 0.8 + i * 2) * 16 + i * 12;
+      const wob = Math.sin(t * 4 + i) * 3;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(gx - 9, gy + wob);
+      ctx.quadraticCurveTo(gx, gy - 5, gx + 1, gy);
+      ctx.quadraticCurveTo(gx + 2, gy - 5, gx + 11, gy + wob);
+      ctx.stroke();
+    }
+    // sun glitter sparkles
+    for (let k = 0; k < 14; k++) {
+      const sxp = ((k * 97.3 + Math.sin(t * 0.6 + k) * 30) % W + W) % W;
+      const syp = H * (0.42 + (k % 5) * 0.02);
+      const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + k));
+      ctx.globalAlpha = tw * 0.5;
+      ctx.fillStyle = "rgba(255,250,210,0.9)";
+      ctx.fillRect(sxp, syp, 2, 2);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /** Festive garland of tiny flip-flops strung across the top of the beach. */
+  drawFlipFlopBunting(ctx: CanvasRenderingContext2D, W: number, _H: number) {
+    const t = this.time;
+    const colors = ["#ff7ac0", "#4fd0c4", "#ffe14d", "#ff9a3d", "#9b6bff", "#4fa3ff"];
+    ctx.save();
+    const span = 70;
+    const off = ((this.camX * 0.2) % span + span) % span;
+    // the string the flip-flops hang from
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = -span; x <= W + span; x += 8) {
+      const yy = 6 + Math.sin((x + off) * 0.025) * 6;
+      if (x === -span) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+    // hanging mini flip-flops
+    let i = 0;
+    for (let x = -span - off; x <= W + span; x += span) {
+      const topY = 6 + Math.sin((x + off) * 0.025) * 6;
+      const sway = Math.sin(t * 2 + i) * 0.18;
+      const c = colors[((i % colors.length) + colors.length) % colors.length];
+      ctx.save();
+      ctx.translate(x + span / 2, topY);
+      ctx.rotate(sway);
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 12);
+      ctx.stroke();
+      ctx.fillStyle = c;
+      this.roundRect(ctx, -9, 12, 18, 26, 9);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 20);
+      ctx.lineTo(-5, 34);
+      ctx.moveTo(0, 20);
+      ctx.lineTo(5, 34);
+      ctx.stroke();
+      ctx.restore();
+      i++;
     }
     ctx.restore();
   }
@@ -1450,18 +1569,70 @@ export class GameEngine {
 
   drawFlipFlop(ctx: CanvasRenderingContext2D, bp: Rect) {
     ctx.save();
-    const bob = Math.sin(this.time * 4) * 2;
-    ctx.fillStyle = "#ff7ac0";
-    this.roundRect(ctx, bp.x, bp.y + bob, bp.w, bp.h, 12);
-    ctx.fill();
-    ctx.strokeStyle = "#ffd6ec";
-    ctx.lineWidth = 4;
+    const palette = [
+      { sole: "#ff7ac0", strap: "#ffe14d" },
+      { sole: "#4fd0c4", strap: "#ff7ac0" },
+      { sole: "#ffb13d", strap: "#4fa3ff" },
+      { sole: "#9b6bff", strap: "#ffe14d" },
+    ];
+    const c = palette[Math.abs(Math.round(bp.x / 100)) % palette.length];
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 4 + bp.x);
+    const bob = Math.sin(this.time * 4 + bp.x) * 2;
+    const x = bp.x;
+    const y = bp.y + bob;
+    const w = bp.w;
+    const h = bp.h;
+    const cx = x + w / 2;
+    const r = h / 2;
+
+    // soft ground shadow
+    ctx.fillStyle = "rgba(40,30,70,0.18)";
     ctx.beginPath();
-    ctx.moveTo(bp.x + bp.w * 0.5, bp.y + bob + 6);
-    ctx.lineTo(bp.x + bp.w * 0.3, bp.y + bob + bp.h - 4);
-    ctx.moveTo(bp.x + bp.w * 0.5, bp.y + bob + 6);
-    ctx.lineTo(bp.x + bp.w * 0.7, bp.y + bob + bp.h - 4);
+    ctx.ellipse(cx, bp.y + h + 7, w * 0.5, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // springy launch glow
+    ctx.save();
+    ctx.globalAlpha = 0.22 + pulse * 0.32;
+    ctx.shadowColor = c.sole;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = c.sole;
+    this.roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+    ctx.restore();
+
+    // sole (footbed)
+    ctx.fillStyle = c.sole;
+    this.roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+    ctx.fillStyle = this.shade(c.sole, 1.2);
+    this.roundRect(ctx, x + 5, y + 4, w - 10, h - 8, (h - 8) / 2);
+    ctx.fill();
+
+    // Y-strap: toe-post near the front, two thongs flaring to the heel
+    const postX = x + w * 0.74;
+    const postY = y + h / 2;
+    ctx.strokeStyle = c.strap;
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(postX, postY);
+    ctx.lineTo(x + w * 0.3, y + 7);
+    ctx.moveTo(postX, postY);
+    ctx.lineTo(x + w * 0.3, y + h - 7);
     ctx.stroke();
+    ctx.fillStyle = c.strap;
+    ctx.beginPath();
+    ctx.arc(postX, postY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // a little sparkle when the catapult is most charged
+    if (pulse > 0.85) {
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "12px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("★", cx, y - 6);
+    }
     ctx.restore();
   }
 
