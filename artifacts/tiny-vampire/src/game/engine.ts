@@ -78,6 +78,12 @@ export class GameEngine {
   inShade = false;
   walkAnim = 0;
 
+  // Level 5 heat-wave rhythm: periodic telegraphed sun flares spike drain in the open
+  heatPhase: "calm" | "warn" | "flare" = "calm";
+  heatT = 0; // seconds until the next phase transition
+  heatPulse = 0; // 0..1 eased intensity, drives visuals + drain
+  heatDrainMult = 1; // energy-drain multiplier derived from heatPulse
+
   // camera
   camX = 0;
   camY = 0;
@@ -224,6 +230,11 @@ export class GameEngine {
     this.daydreamCooldown = 3;
     this.scheduled = [];
     this.ripples = [];
+    // heat-wave rhythm (Level 5 only): start in a calm beat before the first flare
+    this.heatPhase = "calm";
+    this.heatT = this.level.id === 5 ? 4 : 0;
+    this.heatPulse = 0;
+    this.heatDrainMult = 1;
     // intro dialogue (NOX)
     const intro = this.level.dialogue.find((d) => d.id.endsWith("d0"));
     if (intro) {
@@ -260,6 +271,38 @@ export class GameEngine {
     if (!due.length) return;
     this.scheduled = this.scheduled.filter((s) => s.at > this.time);
     for (const s of due) this.cb.onDialogue(s.lines, s.speaker);
+  }
+
+  /**
+   * Level 5 "The Longest Afternoon" heat-wave rhythm. The merciless overhead
+   * sun pulses in telegraphed waves: a calm beat, a rising WARN telegraph, then
+   * a FLARE that nearly doubles open-sun drain — pushing the player to sprint
+   * tent-to-tent or burn a bat shield. Shade and shields stay fully protective.
+   */
+  private updateHeat(dt: number) {
+    if (this.level.id !== 5 || this.dead) {
+      this.heatPhase = "calm";
+      this.heatPulse += (0 - this.heatPulse) * Math.min(1, dt * 4);
+      this.heatDrainMult = 1 + this.heatPulse * 0.9;
+      return;
+    }
+    this.heatT -= dt;
+    if (this.heatT <= 0) {
+      if (this.heatPhase === "calm") {
+        this.heatPhase = "warn";
+        this.heatT = 1.8;
+      } else if (this.heatPhase === "warn") {
+        this.heatPhase = "flare";
+        this.heatT = 2.6;
+        audio.heatwave();
+      } else {
+        this.heatPhase = "calm";
+        this.heatT = 5;
+      }
+    }
+    const target = this.heatPhase === "flare" ? 1 : this.heatPhase === "warn" ? 0.35 : 0;
+    this.heatPulse += (target - this.heatPulse) * Math.min(1, dt * 3.5);
+    this.heatDrainMult = 1 + this.heatPulse * 0.9;
   }
 
   stop() {
@@ -501,6 +544,9 @@ export class GameEngine {
       }
     }
 
+    // ---- heat-wave flares (Level 5) ----
+    this.updateHeat(dt);
+
     // ---- shade & energy ----
     this.inShade = this.computeShade();
     const warmth = this.computeWarmth();
@@ -511,7 +557,7 @@ export class GameEngine {
       } else if (this.inShade) {
         this.energy = Math.min(MAX_ENERGY, this.energy + 26 * dt);
       } else {
-        this.energy -= 14 * lvl.theme.drain * dt;
+        this.energy -= 14 * lvl.theme.drain * this.heatDrainMult * dt;
       }
       if (this.energy <= 0) {
         this.energy = 0;
@@ -961,6 +1007,9 @@ export class GameEngine {
 
     // sun overlay tint as warmth increases / out-of-shade vignette
     this.drawLightOverlay(ctx, lvl, W, H);
+
+    // heat-wave shimmer + flare telegraph (Level 5)
+    if (lvl.id === 5) this.drawHeatWave(ctx, W, H);
 
     // low-energy daydream haze on top of everything
     if (this.daydreamTimer > 0) this.drawDaydream(ctx, W, H);
@@ -1934,6 +1983,64 @@ export class GameEngine {
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
+  }
+
+  /** Heat-wave atmosphere for Level 5: rising shimmer, flare tint, and a telegraph banner. */
+  drawHeatWave(ctx: CanvasRenderingContext2D, W: number, H: number) {
+    const p = this.heatPulse;
+    const t = this.time;
+    ctx.save();
+
+    // heat-haze shimmer bands rising off the ground (present even when calm, faint)
+    const bands = 5;
+    for (let i = 0; i < bands; i++) {
+      const yy = H - 36 - i * 30;
+      const amp = 3 + p * 11;
+      ctx.globalAlpha = 0.05 + p * 0.13;
+      ctx.fillStyle = i % 2 === 0 ? "#ffb46a" : "#ff8a3c";
+      ctx.beginPath();
+      ctx.moveTo(0, yy);
+      for (let x = 0; x <= W; x += 22) {
+        ctx.lineTo(x, yy + Math.sin(x * 0.045 + t * 5 + i * 0.9) * amp);
+      }
+      ctx.lineTo(W, yy + 14);
+      ctx.lineTo(0, yy + 14);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // full-screen flare wash, strongest at the top (overhead sun)
+    if (p > 0.01) {
+      ctx.globalAlpha = p * 0.3;
+      const grd = ctx.createRadialGradient(W / 2, H * 0.18, H * 0.08, W / 2, H * 0.4, H * 1.05);
+      grd.addColorStop(0, "rgba(255,200,90,0)");
+      grd.addColorStop(1, "rgba(255,52,18,0.95)");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // telegraph banner during the warning ramp and the flare
+    if (this.heatPhase === "warn" || this.heatPhase === "flare") {
+      const warn = this.heatPhase === "warn";
+      const blink = 0.55 + 0.45 * Math.sin(t * 12);
+      const label = warn ? "HEAT WAVE INCOMING — FIND SHADE" : "HEAT WAVE";
+      const bw = warn ? 366 : 196;
+      ctx.globalAlpha = warn ? blink : 0.95;
+      ctx.fillStyle = "rgba(58,14,6,0.72)";
+      this.roundRect(ctx, W / 2 - bw / 2, 92, bw, 34, 12);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffe6b0";
+      ctx.font = "bold 15px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("\u2600 " + label, W / 2, 110);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   // helpers

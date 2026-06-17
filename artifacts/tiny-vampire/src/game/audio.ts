@@ -185,6 +185,7 @@ export class AudioEngine {
   note(semi: number) { this.sfx(freq(semi + 12), 0.25, "triangle", 0.28); }
   error() { this.sfx(200, 0.25, "square", 0.25, 120); }
   gate() { this.sfx(160, 0.5, "sine", 0.3, 480); }
+  heatwave() { this.sfx(150, 0.7, "sawtooth", 0.22, 70); window.setTimeout(() => this.sfx(90, 0.6, "sine", 0.18, 48), 130); }
   win() {
     [0, 4, 7, 12].forEach((s, i) => window.setTimeout(() => this.sfx(freq(s + 12), 0.25, "triangle", 0.25), i * 130));
   }
