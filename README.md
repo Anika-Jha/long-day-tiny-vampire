@@ -94,7 +94,7 @@ To reinforce the feeling of a journey, I added several narrative systems:
 * Solstice Memories hidden throughout the world.
 * Optional secret routes and alternate paths.
   
-**  A hidden Alan Turing ending for players who collect every encrypted note. **
+**A hidden Alan Turing ending for players who collect every encrypted note.**
 
 One of the biggest design goals was making the player feel the passage of time.
 
